@@ -1,15 +1,26 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { MainLayout } from '@/components/layout/MainLayout'
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
+import LoginPage from '@/pages/auth/LoginPage'
+import CallbackPage from '@/pages/auth/CallbackPage'
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* TODO: Public routes (login, callback) — DSMKT-33 */}
+        {/* Public routes */}
+        <Route path="/iniciar-sesion" element={<LoginPage />} />
+        <Route path="/auth/callback" element={<CallbackPage />} />
 
         {/* Protected routes with layout */}
-        <Route element={<MainLayout />}>
+        <Route
+          element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }
+        >
           <Route
             path="/"
             element={
