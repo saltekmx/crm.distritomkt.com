@@ -9,17 +9,8 @@ import { api } from '@/services/api'
 const DEV_MODE = import.meta.env.DEV
 
 const TEST_USERS = [
-  { id: 1, email: 'roberto.salas@distritomkt.com', name: 'Roberto Salas' },
-  { id: 2, email: 'carlos.martinez@distritomkt.com', name: 'Carlos Martínez' },
-  { id: 3, email: 'ana.garcia@distritomkt.com', name: 'Ana García' },
-  { id: 4, email: 'pedro.lopez@distritomkt.com', name: 'Pedro López' },
-  { id: 5, email: 'maria.rodriguez@distritomkt.com', name: 'María Rodríguez' },
-  { id: 6, email: 'jorge.hernandez@distritomkt.com', name: 'Jorge Hernández' },
-  { id: 7, email: 'laura.sanchez@distritomkt.com', name: 'Laura Sánchez' },
-  { id: 8, email: 'diego.torres@distritomkt.com', name: 'Diego Torres' },
-  { id: 9, email: 'sofia.ramirez@distritomkt.com', name: 'Sofía Ramírez' },
-  { id: 10, email: 'fernando.diaz@distritomkt.com', name: 'Fernando Díaz' },
-  { id: 11, email: 'valentina.moreno@distritomkt.com', name: 'Valentina Moreno' },
+  { id: 1, email: 'roberto@saltek.mx', name: 'Roberto (Admin)' },
+  { id: 2, email: 'gonzalo@saltek.mx', name: 'Gonzalo (Admin)' },
 ]
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -67,7 +58,7 @@ export default function LoginPage() {
     try {
       setDevLoading(email)
       const { data } = await api.get(`/auth/test-token?email=${encodeURIComponent(email)}`)
-      await handleAuthCallback(data.token)
+      await handleAuthCallback(data.access_token)
     } catch {
       console.error('Dev login error')
       setDevLoading(null)

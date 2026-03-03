@@ -16,5 +16,12 @@ export default defineConfig({
     watch: {
       usePolling: true,
     },
+    proxy: {
+      '/api': {
+        target: 'https://api-dev-distritomkt-com.saltek.mx',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
 })

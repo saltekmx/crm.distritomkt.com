@@ -1,9 +1,10 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_BASE = `${API_URL}/api/v1`
 
 export const api = axios.create({
-  baseURL: API_URL,
+  baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -35,7 +36,7 @@ api.interceptors.response.use(
 
 // Auth endpoints
 export const authApi = {
-  getGoogleAuthUrl: () => `${API_URL}/auth/google`,
+  getGoogleAuthUrl: () => `${API_BASE}/auth/google`,
   me: () => api.get('/auth/me'),
   logout: () => api.post('/auth/logout'),
 }
