@@ -6,4 +6,5 @@ export const ROUTES = {
   PROJECTS: '/proyectos',
   QUOTES: '/cotizaciones',
   ADMIN_USERS: '/admin/usuarios',
+  PROFILE: '/perfil',
 } as const

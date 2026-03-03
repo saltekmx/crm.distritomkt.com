@@ -80,7 +80,7 @@ export function Header() {
                     <button
                       onClick={() => {
                         setShowUserMenu(false)
-                        navigate('/')
+                        navigate(ROUTES.PROFILE)
                       }}
                       className="flex items-center gap-3 w-full px-3 py-2 text-sm text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
                     >

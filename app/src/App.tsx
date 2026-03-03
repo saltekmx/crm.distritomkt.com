@@ -5,6 +5,9 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import LoginPage from '@/pages/auth/LoginPage'
 import CallbackPage from '@/pages/auth/CallbackPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import DashboardPage from '@/pages/DashboardPage'
+import UsersPage from '@/pages/admin/UsersPage'
+import ProfilePage from '@/pages/ProfilePage'
 
 function App() {
   return (
@@ -22,15 +25,7 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route
-            path="/"
-            element={
-              <div>
-                <h1 className="text-2xl font-bold">Dashboard</h1>
-                <p className="mt-2 text-muted-foreground">Bienvenido a DistritoMKT CRM</p>
-              </div>
-            }
-          />
+          <Route path="/" element={<DashboardPage />} />
           <Route
             path="/clientes"
             element={
@@ -68,13 +63,11 @@ function App() {
             path="/admin/usuarios"
             element={
               <ProtectedRoute permission="users:read">
-                <div>
-                  <h1 className="text-2xl font-bold">Usuarios</h1>
-                  <p className="mt-2 text-muted-foreground">Administración de usuarios</p>
-                </div>
+                <UsersPage />
               </ProtectedRoute>
             }
           />
+          <Route path="/perfil" element={<ProfilePage />} />
         </Route>
 
         {/* 404 */}
