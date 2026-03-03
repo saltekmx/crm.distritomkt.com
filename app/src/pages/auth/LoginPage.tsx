@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { ROUTES } from '@/lib/routes'
 import { api } from '@/services/api'
 
-const DEV_MODE = import.meta.env.DEV
+const DEV_LOGIN_ENABLED = import.meta.env.DEV || import.meta.env.VITE_DEV_LOGIN === 'true'
 
 const TEST_USERS = [
   { id: 1, email: 'roberto@saltek.mx', name: 'Roberto (Admin)' },
@@ -109,7 +109,7 @@ export default function LoginPage() {
           </div>
 
           {/* Dev login buttons */}
-          {DEV_MODE && (
+          {(import.meta.env.DEV || (DEV_LOGIN_ENABLED && searchParams.get('dev') === 'true')) && (
             <div className="pt-4 border-t border-border">
               <p className="text-xs text-muted-foreground text-center mb-3">
                 🔧 Desarrollo - Login rápido
