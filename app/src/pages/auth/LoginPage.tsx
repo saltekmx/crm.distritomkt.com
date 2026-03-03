@@ -1,17 +1,8 @@
-import { useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { ROUTES } from '@/lib/routes'
-import { api } from '@/services/api'
-
-const DEV_LOGIN_ENABLED = import.meta.env.DEV || import.meta.env.VITE_DEV_LOGIN === 'true'
-
-const TEST_USERS = [
-  { id: 1, email: 'roberto@saltek.mx', name: 'Roberto (Admin)' },
-  { id: 2, email: 'gonzalo@saltek.mx', name: 'Gonzalo (Admin)' },
-]
 
 const ERROR_MESSAGES: Record<string, string> = {
   auth_failed: 'Error de autenticación. Intenta de nuevo.',
@@ -46,24 +37,12 @@ function GoogleIcon() {
 
 export default function LoginPage() {
   const [searchParams] = useSearchParams()
-  const { isAuthenticated, loginWithGoogle, handleAuthCallback } = useAuth()
-  const [devLoading, setDevLoading] = useState<string | null>(null)
+  const { isAuthenticated, loginWithGoogle } = useAuth()
 
   const errorCode = searchParams.get('error')
   const errorMessage = errorCode
     ? ERROR_MESSAGES[errorCode] || ERROR_MESSAGES.default
     : null
-
-  const handleDevLogin = async (email: string) => {
-    try {
-      setDevLoading(email)
-      const { data } = await api.get(`/auth/test-token?email=${encodeURIComponent(email)}`)
-      await handleAuthCallback(data.access_token)
-    } catch {
-      console.error('Dev login error')
-      setDevLoading(null)
-    }
-  }
 
   if (isAuthenticated) {
     return <Navigate to={ROUTES.HOME} replace />
@@ -107,33 +86,6 @@ export default function LoginPage() {
               Continuar con Google
             </Button>
           </div>
-
-          {/* Dev login buttons */}
-          {(import.meta.env.DEV || (DEV_LOGIN_ENABLED && searchParams.get('dev') === 'true')) && (
-            <div className="pt-4 border-t border-border">
-              <p className="text-xs text-muted-foreground text-center mb-3">
-                🔧 Desarrollo - Login rápido
-              </p>
-              <div className="grid grid-cols-2 gap-1">
-                {TEST_USERS.map((user) => (
-                  <Button
-                    key={user.id}
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start text-xs h-7 px-2 text-muted-foreground hover:text-foreground"
-                    onClick={() => handleDevLogin(user.email)}
-                    disabled={devLoading !== null}
-                  >
-                    {devLoading === user.email ? (
-                      <span className="animate-pulse">...</span>
-                    ) : (
-                      <span className="truncate">{user.name}</span>
-                    )}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
 
           <p className="text-center text-xs text-muted-foreground pt-2">
             &copy; {new Date().getFullYear()} Distrito MKT
