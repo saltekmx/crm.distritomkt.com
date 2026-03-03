@@ -41,4 +41,13 @@ export const authApi = {
   logout: () => api.post('/auth/logout'),
 }
 
+// Users endpoints
+export const usersApi = {
+  list: () => api.get('/users'),
+  create: (data: { email: string; name: string; role?: string }) =>
+    api.post('/users', data),
+  changeRole: (id: string, role: string) =>
+    api.patch(`/users/${id}/role`, { role }),
+}
+
 export default api
