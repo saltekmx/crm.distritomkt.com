@@ -20,7 +20,7 @@ export function ProtectedRoute({
 }: ProtectedRouteProps) {
   const location = useLocation()
   const { isAuthenticated, isLoading } = useAuth()
-  const { hasPermission, hasAnyPermission, hasAllPermissions } = usePermissions()
+  const { hasAnyPermission, hasAllPermissions } = usePermissions()
   const toastShown = useRef(false)
 
   const requiredPerms = permission ? [permission] : permissions ?? []
