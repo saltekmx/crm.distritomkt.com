@@ -4,6 +4,7 @@ import { MainLayout } from '@/components/layout/MainLayout'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import LoginPage from '@/pages/auth/LoginPage'
 import CallbackPage from '@/pages/auth/CallbackPage'
+import NotFoundPage from '@/pages/NotFoundPage'
 
 function App() {
   return (
@@ -33,40 +34,51 @@ function App() {
           <Route
             path="/clientes"
             element={
-              <div>
-                <h1 className="text-2xl font-bold">Clientes</h1>
-                <p className="mt-2 text-muted-foreground">Directorio de clientes</p>
-              </div>
+              <ProtectedRoute permission="clients:read">
+                <div>
+                  <h1 className="text-2xl font-bold">Clientes</h1>
+                  <p className="mt-2 text-muted-foreground">Directorio de clientes</p>
+                </div>
+              </ProtectedRoute>
             }
           />
           <Route
             path="/proyectos"
             element={
-              <div>
-                <h1 className="text-2xl font-bold">Proyectos</h1>
-                <p className="mt-2 text-muted-foreground">Registro de proyectos</p>
-              </div>
+              <ProtectedRoute permission="projects:read">
+                <div>
+                  <h1 className="text-2xl font-bold">Proyectos</h1>
+                  <p className="mt-2 text-muted-foreground">Registro de proyectos</p>
+                </div>
+              </ProtectedRoute>
             }
           />
           <Route
             path="/cotizaciones"
             element={
-              <div>
-                <h1 className="text-2xl font-bold">Cotizaciones</h1>
-                <p className="mt-2 text-muted-foreground">Gestión de cotizaciones</p>
-              </div>
+              <ProtectedRoute permission="quotes:read">
+                <div>
+                  <h1 className="text-2xl font-bold">Cotizaciones</h1>
+                  <p className="mt-2 text-muted-foreground">Gestión de cotizaciones</p>
+                </div>
+              </ProtectedRoute>
             }
           />
           <Route
             path="/admin/usuarios"
             element={
-              <div>
-                <h1 className="text-2xl font-bold">Usuarios</h1>
-                <p className="mt-2 text-muted-foreground">Administración de usuarios</p>
-              </div>
+              <ProtectedRoute permission="users:read">
+                <div>
+                  <h1 className="text-2xl font-bold">Usuarios</h1>
+                  <p className="mt-2 text-muted-foreground">Administración de usuarios</p>
+                </div>
+              </ProtectedRoute>
             }
           />
         </Route>
+
+        {/* 404 */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
       <Toaster position="top-right" richColors />
     </BrowserRouter>

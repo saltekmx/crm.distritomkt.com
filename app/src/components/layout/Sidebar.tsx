@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { usePermissions } from '@/hooks/usePermissions'
 import { ROUTES } from '@/lib/routes'
 
 interface MenuItem {
@@ -46,6 +47,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const location = useLocation()
   const { logout } = useAuth()
+  const { hasPermission } = usePermissions()
   const [expandedItems, setExpandedItems] = useState<string[]>(['Administracion'])
 
   const toggleExpand = (label: string) => {
@@ -55,8 +57,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     )
   }
 
-  // TODO: permission filtering will be enabled with DSMKT-31
-  const canAccess = (_permission?: string) => true
+  const canAccess = (permission?: string) => !permission || hasPermission(permission)
 
   return (
     <aside
