@@ -185,20 +185,47 @@ Backlog → To Do → In Progress → Code Review → QA/Testing → Done
 ## Git & GitHub Conventions
 
 ### Branch Strategy
-- Feature: `feature/{JIRA-KEY}-short-description`
-- Bugfix: `bugfix/{JIRA-KEY}-short-description`
-- Hotfix: `hotfix/{JIRA-KEY}-short-description`
-- Release: `release/v{version}`
-- Default branch: `main`
 
-### PR Requirements
-- Title: `{type}: {description}` (conventional commits)
-- Body: what changed, why, how to test, linked Jira ticket
-- 1 approval required, CI must pass
-- Link Jira: `Closes {KEY}-{N}` or `Relates to {KEY}-{N}`
+```
+main (producción — solo mergear cuando Roberto lo indique)
+  └── development (base de trabajo diario, push libre)
+        └── feature/DSMKT-XX-descripcion (un branch por ticket de Jira)
+        └── bugfix/DSMKT-XX-descripcion
+        └── hotfix/DSMKT-XX-descripcion
+```
+
+### Workflow
+
+1. **Siempre trabajar sobre `development`** como base
+2. **Crear branch por ticket de Jira:** `feature/DSMKT-XX-descripcion` desde `development`
+3. **Commits por cada avance** dentro del ticket (conventional commits)
+4. **Merge a `development`:** cuando el ticket esté completo, merge directo (sin PR)
+5. **Merge a `main`:** SOLO cuando Roberto lo indique explícitamente. Nunca hacerlo autónomamente.
+
+### Reglas
+
+- **Nunca** pushear directo a `main`
+- **Nunca** mergear `development` → `main` sin autorización de Roberto
+- Cada branch nace de `development` y se mergea de vuelta a `development`
+- Un branch = un ticket de Jira
+- Borrar branches mergeados para mantener limpio el repo
 
 ### Commit Messages
-Use conventional commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`
+
+Use conventional commits: `feat(DSMKT-XX):`, `fix(DSMKT-XX):`, `refactor:`, `test:`, `docs:`, `chore:`
+
+Include `Relates to DSMKT-XX` in the commit body.
+
+### Deploys (Cloudflare Pages)
+
+| Branch | Entorno | URL |
+|--------|---------|-----|
+| `development` | Dev/Staging | `dev-distritomkt-com.saltek.mx` |
+| `main` | Producción | `crm.distritomkt.com` |
+
+- Push a `development` → auto-deploy a dev
+- Push a `main` → auto-deploy a producción
+- Variable `VITE_DEV_LOGIN=true` en dev para habilitar login de prueba vía `?dev=true`
 
 ---
 
