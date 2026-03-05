@@ -6,5 +6,7 @@ export const ROUTES = {
   PROJECTS: '/proyectos',
   QUOTES: '/cotizaciones',
   ADMIN_USERS: '/admin/usuarios',
+  ADMIN_USERS_NEW: '/admin/usuarios/nuevo',
+  ADMIN_USERS_EDIT: (id: string) => `/admin/usuarios/${id}`,
   PROFILE: '/perfil',
 } as const

@@ -7,6 +7,9 @@
     <title>DistritoMKT CRM</title>
   </head>
   <body>
+    <script>
+      (function(){var t=localStorage.getItem('theme');if(t==='light'||t==='dark'){document.documentElement.classList.add(t)}else if(t==='system'||!t){var d=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.classList.add(d)}})()
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

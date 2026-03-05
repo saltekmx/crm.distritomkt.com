@@ -18,9 +18,8 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'https://api-dev-distritomkt-com.saltek.mx',
+        target: 'http://localhost:8000',
         changeOrigin: true,
-        secure: true,
       },
     },
   },

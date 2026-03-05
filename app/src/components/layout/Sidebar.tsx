@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   Building2,
@@ -11,6 +11,16 @@ import {
   ChevronDown,
   LogOut,
 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -26,15 +36,15 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, path: ROUTES.HOME },
-  { label: 'Clientes', icon: Building2, path: ROUTES.CLIENTS, permission: 'clients:read' },
-  { label: 'Proyectos', icon: FolderKanban, path: ROUTES.PROJECTS, permission: 'projects:read' },
-  { label: 'Cotizaciones', icon: FileText, path: ROUTES.QUOTES, permission: 'quotes:read' },
+  { label: 'Clientes', icon: Building2, path: ROUTES.CLIENTS, permission: 'clientes:read' },
+  { label: 'Proyectos', icon: FolderKanban, path: ROUTES.PROJECTS, permission: 'proyectos:read' },
+  { label: 'Cotizaciones', icon: FileText, path: ROUTES.QUOTES, permission: 'cotizaciones:read' },
   {
     label: 'Administracion',
     icon: Settings,
-    permission: 'users:read',
+    permission: 'usuarios:read',
     children: [
-      { label: 'Usuarios', path: ROUTES.ADMIN_USERS, permission: 'users:read' },
+      { label: 'Usuarios', path: ROUTES.ADMIN_USERS, permission: 'usuarios:read' },
     ],
   },
 ]
@@ -46,9 +56,11 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const location = useLocation()
+  const navigate = useNavigate()
   const { logout } = useAuth()
   const { hasPermission } = usePermissions()
   const [expandedItems, setExpandedItems] = useState<string[]>(['Administracion'])
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   const toggleExpand = (label: string) => {
     if (collapsed) return
@@ -189,7 +201,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {/* Logout */}
         <div className="border-t border-border p-3">
           <button
-            onClick={logout}
+            onClick={() => setShowLogoutConfirm(true)}
             className={cn(
               'sidebar-item w-full cursor-pointer text-red-400 hover:bg-red-500/10 hover:text-red-300',
               collapsed && 'justify-center px-0'
@@ -201,6 +213,29 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </button>
         </div>
       </div>
+
+      <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cerrar sesion</AlertDialogTitle>
+            <AlertDialogDescription>
+              Estas seguro que deseas cerrar tu sesion?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                logout()
+                navigate(ROUTES.LOGIN)
+              }}
+            >
+              Cerrar Sesion
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   )
 }

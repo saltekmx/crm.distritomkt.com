@@ -7,6 +7,7 @@ import CallbackPage from '@/pages/auth/CallbackPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import DashboardPage from '@/pages/DashboardPage'
 import UsersPage from '@/pages/admin/UsersPage'
+import UserFormPage from '@/pages/admin/UserFormPage'
 import ProfilePage from '@/pages/ProfilePage'
 
 function App() {
@@ -29,7 +30,7 @@ function App() {
           <Route
             path="/clientes"
             element={
-              <ProtectedRoute permission="clients:read">
+              <ProtectedRoute permission="clientes:read">
                 <div>
                   <h1 className="text-2xl font-bold">Clientes</h1>
                   <p className="mt-2 text-muted-foreground">Directorio de clientes</p>
@@ -40,7 +41,7 @@ function App() {
           <Route
             path="/proyectos"
             element={
-              <ProtectedRoute permission="projects:read">
+              <ProtectedRoute permission="proyectos:read">
                 <div>
                   <h1 className="text-2xl font-bold">Proyectos</h1>
                   <p className="mt-2 text-muted-foreground">Registro de proyectos</p>
@@ -51,7 +52,7 @@ function App() {
           <Route
             path="/cotizaciones"
             element={
-              <ProtectedRoute permission="quotes:read">
+              <ProtectedRoute permission="cotizaciones:read">
                 <div>
                   <h1 className="text-2xl font-bold">Cotizaciones</h1>
                   <p className="mt-2 text-muted-foreground">Gestión de cotizaciones</p>
@@ -62,8 +63,24 @@ function App() {
           <Route
             path="/admin/usuarios"
             element={
-              <ProtectedRoute permission="users:read">
+              <ProtectedRoute permission="usuarios:read">
                 <UsersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/usuarios/nuevo"
+            element={
+              <ProtectedRoute permission="usuarios:read">
+                <UserFormPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/usuarios/:id"
+            element={
+              <ProtectedRoute permission="usuarios:read">
+                <UserFormPage />
               </ProtectedRoute>
             }
           />
@@ -73,7 +90,7 @@ function App() {
         {/* 404 */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
-      <Toaster position="top-right" richColors />
+      <Toaster position="bottom-right" richColors closeButton />
     </BrowserRouter>
   )
 }

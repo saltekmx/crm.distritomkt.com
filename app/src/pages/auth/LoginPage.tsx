@@ -65,7 +65,12 @@ export default function LoginPage() {
             <img
               src="/logo.png"
               alt="Distrito MKT"
-              className="h-20 w-auto mx-auto"
+              className="h-20 w-auto mx-auto hidden dark:block"
+            />
+            <img
+              src="/logo-dark.png"
+              alt="Distrito MKT"
+              className="h-20 w-auto mx-auto block dark:hidden"
             />
           </div>
         </CardHeader>

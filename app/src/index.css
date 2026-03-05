@@ -100,7 +100,7 @@
   /* Border - Gold tinted */
   --border: rgba(212, 175, 55, 0.2);
   --border-hover: rgba(212, 175, 55, 0.4);
-  --input: #1a2035;
+  --input: #2a3350;
   --ring: #D4AF37;
 
   /* Sidebar */
@@ -376,6 +376,21 @@
   /* Gold glow effect */
   .gold-glow {
     box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+  }
+
+  /* AI Panel glow */
+  .ai-panel-glow {
+    box-shadow:
+      -12px 0 40px -8px rgba(212, 175, 55, 0.12),
+      -4px 0 20px -4px rgba(212, 175, 55, 0.08),
+      inset 1px 0 0 rgba(212, 175, 55, 0.15);
+  }
+
+  .light .ai-panel-glow {
+    box-shadow:
+      -12px 0 40px -8px rgba(59, 130, 246, 0.1),
+      -4px 0 20px -4px rgba(59, 130, 246, 0.06),
+      inset 1px 0 0 rgba(59, 130, 246, 0.1);
   }
 
   /* Custom scrollbar */

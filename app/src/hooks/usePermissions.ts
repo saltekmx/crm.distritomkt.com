@@ -6,8 +6,16 @@ export function usePermissions() {
 
   const hasPermission = (permission: string): boolean => {
     if (permissions.includes('*')) return true
+    if (permissions.includes(permission)) return true
     const [resource] = permission.split(':')
-    return permissions.includes(permission) || permissions.includes(`${resource}:*`)
+    if (permissions.includes(`${resource}:*`)) return true
+    // Tree wildcard: "clientes:*" covers "clientes.contactos:read"
+    const parts = resource.split('.')
+    for (let i = 1; i < parts.length; i++) {
+      const parent = parts.slice(0, i).join('.')
+      if (permissions.includes(`${parent}:*`)) return true
+    }
+    return false
   }
 
   const hasAnyPermission = (perms: string[]): boolean =>
@@ -16,7 +24,7 @@ export function usePermissions() {
   const hasAllPermissions = (perms: string[]): boolean =>
     perms.every((p) => hasPermission(p))
 
-  const isAdmin = () => hasPermission('users:assign-permissions')
+  const isAdmin = () => permissions.includes('*')
 
   return { hasPermission, hasAnyPermission, hasAllPermissions, isAdmin }
 }
