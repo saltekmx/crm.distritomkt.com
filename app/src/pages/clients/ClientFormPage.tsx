@@ -26,9 +26,9 @@ const clientSchema = z.object({
   direccion_fiscal: z.string().optional(),
   industria: z.string().optional(),
   notas: z.string().optional(),
-  dias_pago: z.coerce.number().min(0).default(30),
+  dias_pago: z.coerce.number().min(0),
   portal_facturas: z.string().optional(),
-  requiere_oc: z.boolean().default(false),
+  requiere_oc: z.boolean(),
   notas_facturacion: z.string().optional(),
 })
 

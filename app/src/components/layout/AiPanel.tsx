@@ -384,22 +384,6 @@ export function AiPanel({ open, onClose, width, onWidthChange }: AiPanelProps) {
     saveActiveId(activeConvId)
   }, [activeConvId])
 
-  const updateActiveMessages = (updater: (msgs: ChatMessage[]) => ChatMessage[]) => {
-    if (!activeConvId) return
-    setConversations((prev) =>
-      prev.map((c) => {
-        if (c.id !== activeConvId) return c
-        const newMsgs = updater(c.messages)
-        return {
-          ...c,
-          messages: newMsgs,
-          title: deriveTitle(newMsgs),
-          updatedAt: new Date().toISOString(),
-        }
-      })
-    )
-  }
-
   const handleNewChat = () => {
     const conv = createConversation()
     setConversations((prev) => [conv, ...prev])
