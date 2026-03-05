@@ -198,8 +198,7 @@ export default function UsersPage() {
               paginated.map((user) => (
                 <tr
                   key={user.id}
-                  className="transition-colors hover:bg-muted/20 cursor-pointer group"
-                  onClick={() => navigate(ROUTES.ADMIN_USERS_EDIT(user.id), { state: user })}
+                  className="transition-colors hover:bg-muted/20 group"
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">

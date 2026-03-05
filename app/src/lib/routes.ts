@@ -3,6 +3,8 @@ export const ROUTES = {
   AUTH_CALLBACK: '/auth/callback',
   HOME: '/',
   CLIENTS: '/clientes',
+  CLIENTS_NEW: '/clientes/nuevo',
+  CLIENTS_EDIT: (id: string) => `/clientes/${id}`,
   PROJECTS: '/proyectos',
   QUOTES: '/cotizaciones',
   ADMIN_USERS: '/admin/usuarios',

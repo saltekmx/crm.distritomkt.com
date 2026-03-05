@@ -8,6 +8,9 @@ import NotFoundPage from '@/pages/NotFoundPage'
 import DashboardPage from '@/pages/DashboardPage'
 import UsersPage from '@/pages/admin/UsersPage'
 import UserFormPage from '@/pages/admin/UserFormPage'
+import ClientsPage from '@/pages/clients/ClientsPage'
+import ClientFormPage from '@/pages/clients/ClientFormPage'
+import ClientDetailPage from '@/pages/clients/ClientDetailPage'
 import ProfilePage from '@/pages/ProfilePage'
 
 function App() {
@@ -31,10 +34,23 @@ function App() {
             path="/clientes"
             element={
               <ProtectedRoute permission="clientes:read">
-                <div>
-                  <h1 className="text-2xl font-bold">Clientes</h1>
-                  <p className="mt-2 text-muted-foreground">Directorio de clientes</p>
-                </div>
+                <ClientsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/clientes/nuevo"
+            element={
+              <ProtectedRoute permission="clientes:write">
+                <ClientFormPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/clientes/:id"
+            element={
+              <ProtectedRoute permission="clientes:read">
+                <ClientDetailPage />
               </ProtectedRoute>
             }
           />

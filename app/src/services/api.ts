@@ -93,4 +93,65 @@ export const usersApi = {
     api.post(`/usuarios/${id}/impersonate`),
 }
 
+// Clients endpoints — matches /api/v1/clientes/*
+export interface ClientsListParams {
+  buscar?: string
+  offset?: number
+  limit?: number
+}
+
+export interface ClientCreateData {
+  nombre: string
+  razon_social?: string
+  rfc?: string
+  regimen_fiscal?: string
+  direccion_fiscal?: string
+  industria?: string
+  notas?: string
+  dias_pago?: number
+  portal_facturas?: string
+  requiere_oc?: boolean
+  notas_facturacion?: string
+}
+
+export interface ClientUpdateData extends Partial<ClientCreateData> {
+  [key: string]: unknown
+}
+
+export const clientsApi = {
+  list: (params?: ClientsListParams) =>
+    api.get('/clientes', { params }),
+  get: (id: string) =>
+    api.get(`/clientes/${id}`),
+  create: (data: ClientCreateData) =>
+    api.post('/clientes', data),
+  update: (id: string, data: ClientUpdateData) =>
+    api.patch(`/clientes/${id}`, data),
+  delete: (id: string) =>
+    api.delete(`/clientes/${id}`),
+}
+
+// Contacts endpoints — matches /api/v1/clientes/:id/contactos/*
+export interface ContactCreateData {
+  nombre: string
+  email?: string
+  telefono?: string
+  cargo?: string
+}
+
+export interface ContactUpdateData extends Partial<ContactCreateData> {
+  [key: string]: unknown
+}
+
+export const contactsApi = {
+  list: (clientId: string) =>
+    api.get(`/clientes/${clientId}/contactos`),
+  create: (clientId: string, data: ContactCreateData) =>
+    api.post(`/clientes/${clientId}/contactos`, data),
+  update: (clientId: string, contactId: string, data: ContactUpdateData) =>
+    api.patch(`/clientes/${clientId}/contactos/${contactId}`, data),
+  delete: (clientId: string, contactId: string) =>
+    api.delete(`/clientes/${clientId}/contactos/${contactId}`),
+}
+
 export default api
