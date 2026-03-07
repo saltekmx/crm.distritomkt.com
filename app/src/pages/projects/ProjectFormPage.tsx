@@ -27,7 +27,7 @@ const projectSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido'),
   tipo: z.string().min(1, 'La categoría es requerida'),
   subcategoria: z.string().optional(),
-  cliente_id: z.coerce.number({ message: 'El cliente es requerido' }).min(1, 'El cliente es requerido'),
+  cliente_id: z.number().min(1, 'El cliente es requerido'),
   fecha_inicio: z.string().optional(),
   fecha_entrega: z.string().optional(),
   notas: z.string().optional(),
@@ -70,7 +70,7 @@ export default function ProjectFormPage() {
       nombre: projectFromState?.nombre ?? '',
       tipo: projectFromState?.tipo ?? '',
       subcategoria: projectFromState?.subcategoria ?? '',
-      cliente_id: projectFromState?.cliente_id ?? ('' as unknown as number),
+      cliente_id: projectFromState?.cliente_id ?? (0),
       fecha_inicio: projectFromState?.fecha_inicio?.slice(0, 10) ?? '',
       fecha_entrega: projectFromState?.fecha_entrega?.slice(0, 10) ?? '',
       notas: projectFromState?.notas ?? '',
@@ -108,7 +108,7 @@ export default function ProjectFormPage() {
         setValue('nombre', p.nombre ?? '')
         setValue('tipo', p.tipo ?? '')
         setValue('subcategoria', p.subcategoria ?? '')
-        setValue('cliente_id', p.cliente_id ?? ('' as unknown as number))
+        setValue('cliente_id', p.cliente_id ?? (0))
         setValue('fecha_inicio', p.fecha_inicio?.slice(0, 10) ?? '')
         setValue('fecha_entrega', p.fecha_entrega?.slice(0, 10) ?? '')
         setValue('notas', p.notas ?? '')

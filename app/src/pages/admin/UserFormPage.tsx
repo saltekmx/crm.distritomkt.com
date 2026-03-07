@@ -39,7 +39,7 @@ const userSchema = z.object({
   puesto: z.string().optional(),
   telefono: z.string().optional(),
   codigo_telefono: z.string().optional(),
-  limite_almacenamiento_mb: z.coerce.number().min(1, 'Minimo 1 MB'),
+  limite_almacenamiento_mb: z.number().min(1, 'Minimo 1 MB'),
   activo: z.boolean(),
 })
 
@@ -299,7 +299,7 @@ export default function UserFormPage() {
                 type="number"
                 min={1}
                 placeholder="500"
-                {...register('limite_almacenamiento_mb')}
+                {...register('limite_almacenamiento_mb', { valueAsNumber: true })}
               />
               {errors.limite_almacenamiento_mb && (
                 <p className="text-xs text-destructive">{errors.limite_almacenamiento_mb.message}</p>

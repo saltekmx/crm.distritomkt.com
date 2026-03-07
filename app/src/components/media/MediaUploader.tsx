@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react'
-import { Upload, Loader2, X } from 'lucide-react'
+import { Upload, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { mediaApi, type MediaFile } from '@/lib/media'

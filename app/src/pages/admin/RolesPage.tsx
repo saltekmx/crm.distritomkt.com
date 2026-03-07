@@ -83,7 +83,7 @@ export default function RolesPage() {
                     <Shield className="h-4 w-4 text-primary" />
                     <h3 className="font-semibold text-sm">{role.nombre}</h3>
                     {role.es_sistema && (
-                      <Lock className="h-3 w-3 text-muted-foreground" title="Rol del sistema" />
+                      <Lock className="h-3 w-3 text-muted-foreground" />
                     )}
                   </div>
                   <DropdownMenu>

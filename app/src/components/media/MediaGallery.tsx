@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
-  FileIcon, Image as ImageIcon, FileText, Trash2, X,
+  FileIcon, FileText, Trash2, X,
   Download, Loader2, FolderOpen, Eye,
 } from 'lucide-react'
 import { toast } from 'sonner'

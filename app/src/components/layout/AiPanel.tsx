@@ -14,7 +14,6 @@ import { aiApi, type AiConversation, type AiMessage, type AiFileInfo } from '@/s
 import { formatFileSize, mediaApi, type MediaFile as MediaFileType } from '@/lib/media'
 import { MediaPanel } from '@/components/media/MediaPanel'
 
-const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp'])
 import { type AiAction, dispatchAiAction } from '@/lib/ai-actions'
 
 // Map routes to friendly labels for the context badge
@@ -619,7 +618,7 @@ export function AiPanel({ open, onClose, width, onWidthChange }: AiPanelProps) {
       let buffer = ''
       let fullContent = ''
       let allActions: AiAction[] = []
-      let newConvId = activeConvId
+      // activeConvId tracked via state
 
       while (true) {
         const { done, value } = await reader.read()
@@ -647,7 +646,6 @@ export function AiPanel({ open, onClose, width, onWidthChange }: AiPanelProps) {
                 break
               case 'meta':
                 if (data.conversation_id && !activeConvId) {
-                  newConvId = data.conversation_id
                   setActiveConvId(data.conversation_id)
                 }
                 break
@@ -1418,7 +1416,7 @@ export function AiPanel({ open, onClose, width, onWidthChange }: AiPanelProps) {
                   </button>
                   <button
                     id="ai-send-btn"
-                    onClick={handleSend}
+                    onClick={() => handleSend()}
                     disabled={isThinking || isUploading}
                     className={cn(
                       'flex items-center justify-center w-8 h-8 rounded-lg transition-all cursor-pointer shrink-0',

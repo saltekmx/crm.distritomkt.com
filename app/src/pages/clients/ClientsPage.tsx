@@ -78,7 +78,7 @@ export default function ClientsPage() {
   const [searchInput, setSearchInput] = useState(search)
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [expanded, setExpanded] = useState<Record<string, ExpandedState>>({})
+  const [expanded, setExpanded] = useState<Record<number, ExpandedState>>({})
 
   const offset = (page - 1) * pageSize
 
@@ -147,7 +147,7 @@ export default function ClientsPage() {
     }
   }
 
-  const toggleExpand = (clientId: string) => {
+  const toggleExpand = (clientId: number) => {
     if (expanded[clientId]) {
       setExpanded((prev) => {
         const next = { ...prev }
