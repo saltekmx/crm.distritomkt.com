@@ -5,11 +5,12 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { ROUTES } from '@/lib/routes'
 
 const ERROR_MESSAGES: Record<string, string> = {
-  auth_failed: 'Error de autenticación. Intenta de nuevo.',
+  auth_failed: 'No se pudo iniciar sesión. Intenta de nuevo.',
   invalid_domain: 'Solo se permiten cuentas @distritomkt.com',
   unauthorized_domain: 'Solo se permiten cuentas @distritomkt.com',
+  user_not_found: 'Esta cuenta no está registrada en la plataforma.',
   account_disabled: 'Tu cuenta está deshabilitada. Contacta al administrador.',
-  default: 'Ocurrió un error. Intenta de nuevo.',
+  default: 'No se pudo iniciar sesión. Intenta de nuevo.',
 }
 
 function GoogleIcon() {

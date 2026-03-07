@@ -11,7 +11,13 @@ import UserFormPage from '@/pages/admin/UserFormPage'
 import ClientsPage from '@/pages/clients/ClientsPage'
 import ClientFormPage from '@/pages/clients/ClientFormPage'
 import ClientDetailPage from '@/pages/clients/ClientDetailPage'
+import ProjectsPage from '@/pages/projects/ProjectsPage'
+import ProjectFormPage from '@/pages/projects/ProjectFormPage'
+import ProjectDetailPage from '@/pages/projects/ProjectDetailPage'
+import MediaPage from '@/pages/MediaPage'
 import ProfilePage from '@/pages/ProfilePage'
+import RolesPage from '@/pages/admin/RolesPage'
+import RoleFormPage from '@/pages/admin/RoleFormPage'
 
 function App() {
   return (
@@ -58,13 +64,35 @@ function App() {
             path="/proyectos"
             element={
               <ProtectedRoute permission="proyectos:read">
-                <div>
-                  <h1 className="text-2xl font-bold">Proyectos</h1>
-                  <p className="mt-2 text-muted-foreground">Registro de proyectos</p>
-                </div>
+                <ProjectsPage />
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/proyectos/nuevo"
+            element={
+              <ProtectedRoute permission="proyectos:write">
+                <ProjectFormPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/proyectos/:id"
+            element={
+              <ProtectedRoute permission="proyectos:read">
+                <ProjectDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/proyectos/:id/editar"
+            element={
+              <ProtectedRoute permission="proyectos:write">
+                <ProjectFormPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/media" element={<MediaPage />} />
           <Route
             path="/cotizaciones"
             element={
@@ -97,6 +125,30 @@ function App() {
             element={
               <ProtectedRoute permission="usuarios:read">
                 <UserFormPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/roles"
+            element={
+              <ProtectedRoute permission="roles:read">
+                <RolesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/roles/nuevo"
+            element={
+              <ProtectedRoute permission="roles:write">
+                <RoleFormPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/roles/:id"
+            element={
+              <ProtectedRoute permission="roles:write">
+                <RoleFormPage />
               </ProtectedRoute>
             }
           />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { ROUTES } from '@/lib/routes'
@@ -7,47 +7,30 @@ export default function CallbackPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { handleAuthCallback } = useAuth()
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const token = searchParams.get('token')
+    const refreshToken = searchParams.get('refresh_token')
     const errorParam = searchParams.get('error')
 
     if (errorParam) {
-      setError(decodeURIComponent(errorParam))
+      navigate(`${ROUTES.LOGIN}?error=${encodeURIComponent(errorParam)}`, { replace: true })
       return
     }
 
     if (!token) {
-      setError('No se recibió token de autenticación')
+      navigate(`${ROUTES.LOGIN}?error=auth_failed`, { replace: true })
       return
     }
 
-    handleAuthCallback(token)
+    handleAuthCallback(token, refreshToken ?? undefined)
       .then(() => {
         navigate(ROUTES.HOME, { replace: true })
       })
       .catch(() => {
-        setError('Error al procesar la autenticación')
+        navigate(`${ROUTES.LOGIN}?error=auth_failed`, { replace: true })
       })
   }, [searchParams, handleAuthCallback, navigate])
-
-  if (error) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="space-y-4 text-center">
-          <p className="font-medium text-destructive">Error de autenticación</p>
-          <p className="text-sm text-muted-foreground">{error}</p>
-          <button
-            onClick={() => navigate(ROUTES.LOGIN)}
-            className="text-sm text-primary hover:underline"
-          >
-            Volver al inicio de sesión
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">

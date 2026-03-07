@@ -21,7 +21,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { getInitials } from '@/lib/utils'
 
 interface User {
-  id: string
+  id: number
   email: string
   nombre: string
   avatar_url: string | null
@@ -36,7 +36,7 @@ const PAGE_SIZES = [10, 20, 50]
 const DEFAULT_PAGE_SIZE = 10
 
 function getPermissionsLabel(permisos: string[]): string {
-  if (permisos.includes('*')) return 'Todos los permisos'
+  if (permisos.includes('*')) return 'Admin'
   if (permisos.length === 0) return 'Sin permisos'
   return `${permisos.length} permiso${permisos.length !== 1 ? 's' : ''}`
 }
@@ -249,7 +249,7 @@ export default function UsersPage() {
                               onClick={async () => {
                                 try {
                                   const res = await usersApi.impersonate(user.id)
-                                  await useAuthStore.getState().startImpersonation(res.data.access_token)
+                                  await useAuthStore.getState().startImpersonation(res.data.access_token, res.data.refresh_token)
                                   navigate('/')
                                 } catch {
                                   // toast is handled by the global interceptor
@@ -281,7 +281,7 @@ export default function UsersPage() {
                   limite: Number(e.target.value) === DEFAULT_PAGE_SIZE ? null : e.target.value,
                   pagina: null,
                 })}
-                className="h-8 rounded-md border border-border-hover bg-transparent px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                className="h-8 rounded-md border border-border-hover bg-card px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring [&>option]:bg-card [&>option]:text-foreground"
               >
                 {PAGE_SIZES.map((size) => (
                   <option key={size} value={size}>{size}</option>

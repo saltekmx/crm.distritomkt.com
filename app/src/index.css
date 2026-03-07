@@ -302,6 +302,22 @@
     color: var(--primary);
   }
 
+  .status-badge-secondary {
+    @apply bg-muted text-muted-foreground;
+  }
+
+  .status-badge-purple {
+    @apply bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300;
+  }
+
+  /* Date input dark mode fix */
+  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
+  input[type="date"] {
+    color-scheme: light dark;
+  }
+
   /* Input Modern */
   .input-modern {
     @apply w-full px-4 py-2.5 rounded-xl border;

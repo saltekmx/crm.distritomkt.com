@@ -3,11 +3,12 @@ import { persist } from 'zustand/middleware'
 import { authApi } from '@/services/api'
 
 export interface AuthUser {
-  id: string
+  id: number
   email: string
   name: string
   avatar: string | null
   position: string | null
+  timezone: string
   isActive: boolean
   permissions: string[]
 }
@@ -15,15 +16,16 @@ export interface AuthUser {
 interface AuthState {
   user: AuthUser | null
   token: string | null
+  refreshToken: string | null
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
 
-  setToken: (token: string) => void
+  setToken: (token: string, refreshToken?: string) => void
   fetchUser: () => Promise<void>
   logout: () => void
   clearError: () => void
-  startImpersonation: (newToken: string) => Promise<void>
+  startImpersonation: (newToken: string, newRefreshToken?: string) => Promise<void>
   stopImpersonation: () => Promise<void>
   isImpersonating: () => boolean
 }
@@ -33,13 +35,17 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       token: null,
+      refreshToken: null,
       isAuthenticated: false,
       isLoading: true,
       error: null,
 
-      setToken: (token: string) => {
+      setToken: (token: string, refreshToken?: string) => {
         localStorage.setItem('token', token)
-        set({ token, isAuthenticated: true })
+        if (refreshToken) {
+          localStorage.setItem('refresh_token', refreshToken)
+        }
+        set({ token, refreshToken: refreshToken ?? get().refreshToken, isAuthenticated: true })
       },
 
       fetchUser: async () => {
@@ -61,6 +67,7 @@ export const useAuthStore = create<AuthState>()(
               name: data.nombre,
               avatar: data.avatar_url,
               position: data.puesto,
+              timezone: data.zona_horaria ?? 'America/Mexico_City',
               isActive: data.activo,
               permissions: data.permisos ?? [],
             },
@@ -69,9 +76,11 @@ export const useAuthStore = create<AuthState>()(
           })
         } catch {
           localStorage.removeItem('token')
+          localStorage.removeItem('refresh_token')
           set({
             user: null,
             token: null,
+            refreshToken: null,
             isAuthenticated: false,
             isLoading: false,
             error: 'Session expired',
@@ -81,10 +90,13 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         localStorage.removeItem('token')
+        localStorage.removeItem('refresh_token')
         localStorage.removeItem('admin_token')
+        localStorage.removeItem('admin_refresh_token')
         set({
           user: null,
           token: null,
+          refreshToken: null,
           isAuthenticated: false,
           error: null,
         })
@@ -92,13 +104,19 @@ export const useAuthStore = create<AuthState>()(
 
       clearError: () => set({ error: null }),
 
-      startImpersonation: async (newToken: string) => {
-        const { token } = get()
+      startImpersonation: async (newToken: string, newRefreshToken?: string) => {
+        const { token, refreshToken } = get()
         if (token) {
           localStorage.setItem('admin_token', token)
         }
+        if (refreshToken) {
+          localStorage.setItem('admin_refresh_token', refreshToken)
+        }
         localStorage.setItem('token', newToken)
-        set({ token: newToken, isAuthenticated: true, isLoading: true })
+        if (newRefreshToken) {
+          localStorage.setItem('refresh_token', newRefreshToken)
+        }
+        set({ token: newToken, refreshToken: newRefreshToken ?? null, isAuthenticated: true, isLoading: true })
         try {
           const response = await authApi.me()
           const data = response.data
@@ -109,6 +127,7 @@ export const useAuthStore = create<AuthState>()(
               name: data.nombre,
               avatar: data.avatar_url,
               position: data.puesto,
+              timezone: data.zona_horaria ?? 'America/Mexico_City',
               isActive: data.activo,
               permissions: data.permisos ?? [],
             },
@@ -116,10 +135,15 @@ export const useAuthStore = create<AuthState>()(
           })
         } catch {
           const adminToken = localStorage.getItem('admin_token')
+          const adminRefreshToken = localStorage.getItem('admin_refresh_token')
           if (adminToken) {
             localStorage.setItem('token', adminToken)
             localStorage.removeItem('admin_token')
-            set({ token: adminToken })
+            if (adminRefreshToken) {
+              localStorage.setItem('refresh_token', adminRefreshToken)
+              localStorage.removeItem('admin_refresh_token')
+            }
+            set({ token: adminToken, refreshToken: adminRefreshToken })
           }
           set({ isLoading: false })
         }
@@ -127,10 +151,15 @@ export const useAuthStore = create<AuthState>()(
 
       stopImpersonation: async () => {
         const adminToken = localStorage.getItem('admin_token')
+        const adminRefreshToken = localStorage.getItem('admin_refresh_token')
         if (!adminToken) return
         localStorage.setItem('token', adminToken)
         localStorage.removeItem('admin_token')
-        set({ token: adminToken, isAuthenticated: true, isLoading: true })
+        if (adminRefreshToken) {
+          localStorage.setItem('refresh_token', adminRefreshToken)
+          localStorage.removeItem('admin_refresh_token')
+        }
+        set({ token: adminToken, refreshToken: adminRefreshToken, isAuthenticated: true, isLoading: true })
         try {
           const response = await authApi.me()
           const data = response.data
@@ -141,6 +170,7 @@ export const useAuthStore = create<AuthState>()(
               name: data.nombre,
               avatar: data.avatar_url,
               position: data.puesto,
+              timezone: data.zona_horaria ?? 'America/Mexico_City',
               isActive: data.activo,
               permissions: data.permisos ?? [],
             },
@@ -148,8 +178,10 @@ export const useAuthStore = create<AuthState>()(
           })
         } catch {
           localStorage.removeItem('token')
+          localStorage.removeItem('refresh_token')
           localStorage.removeItem('admin_token')
-          set({ user: null, token: null, isAuthenticated: false, isLoading: false })
+          localStorage.removeItem('admin_refresh_token')
+          set({ user: null, token: null, refreshToken: null, isAuthenticated: false, isLoading: false })
         }
       },
 
@@ -159,6 +191,7 @@ export const useAuthStore = create<AuthState>()(
       name: 'auth-storage',
       partialize: (state) => ({
         token: state.token,
+        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {

@@ -28,8 +28,8 @@ export function useAuth() {
   }, [])
 
   const handleAuthCallback = useCallback(
-    async (callbackToken: string) => {
-      setToken(callbackToken)
+    async (callbackToken: string, refreshToken?: string) => {
+      setToken(callbackToken, refreshToken)
       await fetchUser()
     },
     [setToken, fetchUser]

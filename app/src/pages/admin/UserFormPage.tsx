@@ -3,9 +3,9 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { UserPlus, UserPen, Loader2, ArrowLeft, Shield } from 'lucide-react'
+import { UserPlus, UserPen, Loader2, ArrowLeft, Shield, X, Plus } from 'lucide-react'
 import { toast } from 'sonner'
-import { usersApi } from '@/services/api'
+import { usersApi, rbacApi, type RbacRole } from '@/services/api'
 import { ROUTES } from '@/lib/routes'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -13,81 +13,24 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Switch } from '@/components/ui/switch'
-import { getInitials } from '@/lib/utils'
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const PERMISSION_MODULES = [
-  {
-    module: 'usuarios',
-    label: 'Usuarios',
-    permissions: [
-      { value: 'usuarios:read', label: 'Ver usuarios' },
-      { value: 'usuarios:write', label: 'Crear/editar usuarios' },
-      { value: 'usuarios:delete', label: 'Eliminar usuarios' },
-      { value: 'usuarios.impersonate:write', label: 'Impersonar usuarios' },
-    ],
-  },
-  {
-    module: 'clientes',
-    label: 'Clientes',
-    permissions: [
-      { value: 'clientes:read', label: 'Ver clientes' },
-      { value: 'clientes:write', label: 'Crear/editar clientes' },
-      { value: 'clientes:delete', label: 'Eliminar clientes' },
-      { value: 'clientes.contactos:read', label: 'Ver contactos' },
-      { value: 'clientes.contactos:write', label: 'Crear/editar contactos' },
-      { value: 'clientes.contactos:delete', label: 'Eliminar contactos' },
-    ],
-  },
-  {
-    module: 'proyectos',
-    label: 'Proyectos',
-    permissions: [
-      { value: 'proyectos:read', label: 'Ver proyectos' },
-      { value: 'proyectos:write', label: 'Crear/editar proyectos' },
-      { value: 'proyectos:delete', label: 'Eliminar proyectos' },
-      { value: 'proyectos.estado:write', label: 'Cambiar estado operativo' },
-      { value: 'proyectos.estado-admin:write', label: 'Cambiar estado administrativo' },
-      { value: 'proyectos.mover:write', label: 'Mover en tablero' },
-      { value: 'proyectos.checklist:read', label: 'Ver checklist' },
-      { value: 'proyectos.checklist:write', label: 'Editar checklist' },
-      { value: 'proyectos.historial:read', label: 'Ver historial' },
-    ],
-  },
-  {
-    module: 'cotizaciones',
-    label: 'Cotizaciones',
-    permissions: [
-      { value: 'cotizaciones:read', label: 'Ver cotizaciones' },
-      { value: 'cotizaciones:write', label: 'Crear/editar cotizaciones' },
-      { value: 'cotizaciones:delete', label: 'Eliminar cotizaciones' },
-    ],
-  },
-]
-
-// ---------------------------------------------------------------------------
-// Schema
-// ---------------------------------------------------------------------------
+import { getInitials, cn } from '@/lib/utils'
 
 const COUNTRY_CODES = [
-  { code: '+52', country: 'MX', flag: '🇲🇽' },
-  { code: '+1', country: 'US', flag: '🇺🇸' },
-  { code: '+57', country: 'CO', flag: '🇨🇴' },
-  { code: '+56', country: 'CL', flag: '🇨🇱' },
-  { code: '+54', country: 'AR', flag: '🇦🇷' },
-  { code: '+51', country: 'PE', flag: '🇵🇪' },
-  { code: '+34', country: 'ES', flag: '🇪🇸' },
-  { code: '+55', country: 'BR', flag: '🇧🇷' },
-  { code: '+593', country: 'EC', flag: '🇪🇨' },
-  { code: '+58', country: 'VE', flag: '🇻🇪' },
-  { code: '+502', country: 'GT', flag: '🇬🇹' },
-  { code: '+503', country: 'SV', flag: '🇸🇻' },
-  { code: '+504', country: 'HN', flag: '🇭🇳' },
-  { code: '+506', country: 'CR', flag: '🇨🇷' },
-  { code: '+507', country: 'PA', flag: '🇵🇦' },
+  { code: '+52', country: 'MX', flag: '\u{1F1F2}\u{1F1FD}' },
+  { code: '+1', country: 'US', flag: '\u{1F1FA}\u{1F1F8}' },
+  { code: '+57', country: 'CO', flag: '\u{1F1E8}\u{1F1F4}' },
+  { code: '+56', country: 'CL', flag: '\u{1F1E8}\u{1F1F1}' },
+  { code: '+54', country: 'AR', flag: '\u{1F1E6}\u{1F1F7}' },
+  { code: '+51', country: 'PE', flag: '\u{1F1F5}\u{1F1EA}' },
+  { code: '+34', country: 'ES', flag: '\u{1F1EA}\u{1F1F8}' },
+  { code: '+55', country: 'BR', flag: '\u{1F1E7}\u{1F1F7}' },
+  { code: '+593', country: 'EC', flag: '\u{1F1EA}\u{1F1E8}' },
+  { code: '+58', country: 'VE', flag: '\u{1F1FB}\u{1F1EA}' },
+  { code: '+502', country: 'GT', flag: '\u{1F1EC}\u{1F1F9}' },
+  { code: '+503', country: 'SV', flag: '\u{1F1F8}\u{1F1FB}' },
+  { code: '+504', country: 'HN', flag: '\u{1F1ED}\u{1F1F3}' },
+  { code: '+506', country: 'CR', flag: '\u{1F1E8}\u{1F1F7}' },
+  { code: '+507', country: 'PA', flag: '\u{1F1F5}\u{1F1E6}' },
 ]
 
 const userSchema = z.object({
@@ -96,62 +39,25 @@ const userSchema = z.object({
   puesto: z.string().optional(),
   telefono: z.string().optional(),
   codigo_telefono: z.string().optional(),
-  permisos: z.array(z.string()),
+  limite_almacenamiento_mb: z.coerce.number().min(1, 'Minimo 1 MB'),
   activo: z.boolean(),
 })
 
 type UserFormData = z.infer<typeof userSchema>
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 interface UserState {
-  id: string
+  id: number
   email: string
   nombre: string
   avatar_url: string | null
   puesto: string | null
   telefono: string | null
   codigo_telefono: string | null
+  limite_almacenamiento_mb: number
   activo: boolean
   permisos: string[]
   creado_en: string
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Check if the user has superadmin wildcard */
-function isSuperAdmin(permisos: string[]): boolean {
-  return permisos.includes('*')
-}
-
-/** Check if the user has a module wildcard like "usuarios:*" */
-function hasModuleWildcard(permisos: string[], mod: string): boolean {
-  return permisos.includes(`${mod}:*`)
-}
-
-/** Check if a specific permission is granted (directly or via wildcard) */
-function hasPermission(permisos: string[], perm: string): boolean {
-  if (isSuperAdmin(permisos)) return true
-  if (permisos.includes(perm)) return true
-  // Check resource:* wildcard (e.g. "clientes.contactos:*" covers "clientes.contactos:read")
-  const [resource] = perm.split(':')
-  if (permisos.includes(`${resource}:*`)) return true
-  // Check parent tree wildcard (e.g. "clientes:*" covers "clientes.contactos:read")
-  const parts = resource.split('.')
-  for (let i = 1; i < parts.length; i++) {
-    const parent = parts.slice(0, i).join('.')
-    if (permisos.includes(`${parent}:*`)) return true
-  }
-  return false
-}
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 
 export default function UserFormPage() {
   const { id } = useParams<{ id: string }>()
@@ -164,6 +70,11 @@ export default function UserFormPage() {
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [userData, setUserData] = useState<UserState | null>(userFromState)
+
+  // Roles
+  const [allRoles, setAllRoles] = useState<RbacRole[]>([])
+  const [assignedRoleIds, setAssignedRoleIds] = useState<Set<number>>(new Set())
+  const [showRolePicker, setShowRolePicker] = useState(false)
 
   const {
     register,
@@ -179,13 +90,25 @@ export default function UserFormPage() {
       puesto: userFromState?.puesto ?? '',
       telefono: userFromState?.telefono ?? '',
       codigo_telefono: userFromState?.codigo_telefono ?? '+52',
-      permisos: userFromState?.permisos ?? [],
+      limite_almacenamiento_mb: userFromState?.limite_almacenamiento_mb ?? 500,
       activo: userFromState?.activo ?? true,
     },
   })
 
-  const permisos = watch('permisos')
   const activo = watch('activo')
+
+  // Load all roles
+  useEffect(() => {
+    rbacApi.listRoles().then((res) => setAllRoles(res.data)).catch(() => {})
+  }, [])
+
+  // Load user's current roles
+  useEffect(() => {
+    if (!isEdit || !id) return
+    rbacApi.getUserRoles(Number(id))
+      .then((res) => setAssignedRoleIds(new Set(res.data.map((r) => r.id))))
+      .catch(() => {})
+  }, [isEdit, id])
 
   useEffect(() => {
     if (!isEdit || userFromState) return
@@ -193,7 +116,7 @@ export default function UserFormPage() {
     usersApi
       .list()
       .then((res) => {
-        const user = res.data.find((u: UserState) => u.id === id)
+        const user = res.data.find((u: UserState) => u.id === Number(id))
         if (user) {
           setUserData(user)
           setValue('nombre', user.nombre)
@@ -201,96 +124,66 @@ export default function UserFormPage() {
           setValue('puesto', user.puesto ?? '')
           setValue('telefono', user.telefono ?? '')
           setValue('codigo_telefono', user.codigo_telefono ?? '+52')
-          setValue('permisos', user.permisos ?? [])
+          setValue('limite_almacenamiento_mb', user.limite_almacenamiento_mb ?? 500)
           setValue('activo', user.activo)
         } else {
           toast.error('Usuario no encontrado')
           navigate(ROUTES.ADMIN_USERS)
         }
       })
-      .catch(() => {
-        navigate(ROUTES.ADMIN_USERS)
-      })
+      .catch(() => navigate(ROUTES.ADMIN_USERS))
       .finally(() => setLoading(false))
   }, [id, isEdit, userFromState, setValue, navigate])
 
-  // ---- Permission toggle helpers ----
+  const assignedRoles = allRoles.filter((r) => assignedRoleIds.has(r.id))
+  const availableRoles = allRoles.filter((r) => !assignedRoleIds.has(r.id))
 
-  const toggleSuperAdmin = () => {
-    if (isSuperAdmin(permisos)) {
-      setValue('permisos', [], { shouldValidate: true })
-    } else {
-      setValue('permisos', ['*'], { shouldValidate: true })
-    }
+  const addRole = (roleId: number) => {
+    setAssignedRoleIds((prev) => new Set([...prev, roleId]))
+    setShowRolePicker(false)
   }
 
-  const toggleModuleWildcard = (mod: string) => {
-    if (isSuperAdmin(permisos)) return
-    const wildcard = `${mod}:*`
-    const modulePermValues = PERMISSION_MODULES
-      .find((m) => m.module === mod)
-      ?.permissions.map((p) => p.value) ?? []
-
-    if (hasModuleWildcard(permisos, mod)) {
-      // Remove wildcard and all module permissions
-      setValue(
-        'permisos',
-        permisos.filter((p) => p !== wildcard && !modulePermValues.includes(p)),
-        { shouldValidate: true },
-      )
-    } else {
-      // Add wildcard and remove individual module perms (wildcard covers them)
-      const cleaned = permisos.filter((p) => !modulePermValues.includes(p))
-      setValue('permisos', [...cleaned, wildcard], { shouldValidate: true })
-    }
+  const removeRole = (roleId: number) => {
+    setAssignedRoleIds((prev) => {
+      const next = new Set(prev)
+      next.delete(roleId)
+      return next
+    })
   }
-
-  const togglePermission = (perm: string) => {
-    if (isSuperAdmin(permisos)) return
-    // Check if any parent wildcard covers this permission
-    const [resource] = perm.split(':')
-    const parts = resource.split('.')
-    for (let i = 1; i <= parts.length; i++) {
-      const ancestor = parts.slice(0, i).join('.')
-      if (permisos.includes(`${ancestor}:*`)) return
-    }
-
-    if (permisos.includes(perm)) {
-      setValue('permisos', permisos.filter((p) => p !== perm), { shouldValidate: true })
-    } else {
-      setValue('permisos', [...permisos, perm], { shouldValidate: true })
-    }
-  }
-
-  // ---- Submit ----
 
   const onSubmit = async (data: UserFormData) => {
     setSubmitting(true)
     try {
       if (isEdit && id) {
-        await usersApi.update(id, {
+        await usersApi.update(Number(id), {
           nombre: data.nombre,
           email: data.email,
           puesto: data.puesto || undefined,
           telefono: data.telefono || undefined,
           codigo_telefono: data.codigo_telefono || undefined,
-          permisos: data.permisos,
+          limite_almacenamiento_mb: data.limite_almacenamiento_mb,
           activo: data.activo,
         })
+        // Save roles
+        await rbacApi.setUserRoles(Number(id), [...assignedRoleIds])
         toast.success('Usuario actualizado')
       } else {
-        await usersApi.create({
+        const res = await usersApi.create({
           nombre: data.nombre,
           email: data.email,
           telefono: data.telefono || undefined,
           codigo_telefono: data.codigo_telefono || undefined,
-          permisos: data.permisos,
+          permisos: [],
         })
+        // Assign roles to new user
+        if (assignedRoleIds.size > 0) {
+          await rbacApi.setUserRoles(res.data.id, [...assignedRoleIds])
+        }
         toast.success('Usuario creado')
       }
       navigate(ROUTES.ADMIN_USERS)
     } catch {
-      // toast is handled by the global interceptor
+      // toast handled by interceptor
     } finally {
       setSubmitting(false)
     }
@@ -378,13 +271,12 @@ export default function UserFormPage() {
               />
             </div>
 
-            {/* Phone with country code dropdown */}
             <div className="space-y-2">
               <Label>Telefono</Label>
               <div className="flex gap-2">
                 <select
                   {...register('codigo_telefono')}
-                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring shrink-0 w-[90px]"
+                  className="h-9 rounded-md border border-input bg-card px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring shrink-0 w-[90px] [&>option]:bg-card [&>option]:text-foreground"
                 >
                   {COUNTRY_CODES.map((c) => (
                     <option key={c.code} value={c.code}>
@@ -399,79 +291,141 @@ export default function UserFormPage() {
                 />
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="limite_almacenamiento_mb">Almacenamiento (MB)</Label>
+              <Input
+                id="limite_almacenamiento_mb"
+                type="number"
+                min={1}
+                placeholder="500"
+                {...register('limite_almacenamiento_mb')}
+              />
+              {errors.limite_almacenamiento_mb && (
+                <p className="text-xs text-destructive">{errors.limite_almacenamiento_mb.message}</p>
+              )}
+            </div>
           </div>
 
-          {/* Permissions section */}
+          {/* Roles section */}
           <div className="border-t border-border/30 p-6 space-y-4">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
-              <h3 className="text-sm font-semibold">Permisos</h3>
+              <h3 className="text-sm font-semibold">Roles</h3>
+              <span className="text-xs text-muted-foreground">
+                ({assignedRoles.length} asignado{assignedRoles.length !== 1 ? 's' : ''})
+              </span>
             </div>
 
-            {/* Super admin toggle */}
-            <label className="flex items-center gap-3 rounded-lg border border-border/50 p-3 cursor-pointer hover:bg-muted/30 transition-colors">
-              <input
-                type="checkbox"
-                checked={isSuperAdmin(permisos)}
-                onChange={toggleSuperAdmin}
-                className="h-4 w-4 rounded border-border text-primary focus:ring-primary accent-primary"
-              />
-              <div>
-                <p className="text-sm font-medium">Todos los permisos</p>
-                <p className="text-xs text-muted-foreground">Acceso total al sistema (superadmin)</p>
-              </div>
-            </label>
+            {/* Assigned roles as chips */}
+            <div className="flex flex-wrap gap-2">
+              {assignedRoles.map((role) => (
+                <div
+                  key={role.id}
+                  className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-lg border border-primary/20 bg-primary/5 text-sm"
+                >
+                  <Shield className="h-3.5 w-3.5 text-primary" />
+                  <span className="font-medium">{role.nombre}</span>
+                  <span className="text-xs text-muted-foreground ml-1">
+                    {role.permisos.length} permiso{role.permisos.length !== 1 ? 's' : ''}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeRole(role.id)}
+                    className="ml-1 w-5 h-5 flex items-center justify-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
 
-            {/* Module-based permissions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {PERMISSION_MODULES.map((mod) => {
-                const isModWildcard = hasModuleWildcard(permisos, mod.module)
-                const isSuper = isSuperAdmin(permisos)
+              {/* Add role button */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowRolePicker(!showRolePicker)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors cursor-pointer',
+                    showRolePicker && 'border-primary/30 text-foreground'
+                  )}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Agregar rol
+                </button>
 
-                return (
-                  <div key={mod.module} className="rounded-lg border border-border/50 overflow-hidden">
-                    {/* Module header with wildcard checkbox */}
-                    <label className="flex items-center gap-3 px-4 py-3 bg-muted/20 border-b border-border/30 cursor-pointer hover:bg-muted/40 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={isSuper || isModWildcard}
-                        disabled={isSuper}
-                        onChange={() => toggleModuleWildcard(mod.module)}
-                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary accent-primary disabled:opacity-50"
-                      />
-                      <span className="text-sm font-medium">{mod.label}</span>
-                      {(isSuper || isModWildcard) && (
-                        <span className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                          Todos
-                        </span>
+                {/* Role picker dropdown */}
+                {showRolePicker && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowRolePicker(false)} />
+                    <div className="absolute left-0 top-full z-50 mt-1 bg-card border border-border rounded-lg shadow-lg py-1 min-w-[220px] max-h-60 overflow-y-auto">
+                      {availableRoles.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-muted-foreground">No hay roles disponibles</p>
+                      ) : (
+                        availableRoles.map((role) => (
+                          <button
+                            key={role.id}
+                            type="button"
+                            onClick={() => addRole(role.id)}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-muted transition-colors cursor-pointer"
+                          >
+                            <Shield className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">{role.nombre}</p>
+                              {role.descripcion && (
+                                <p className="text-xs text-muted-foreground truncate">{role.descripcion}</p>
+                              )}
+                            </div>
+                            <span className="ml-auto text-xs text-muted-foreground shrink-0">
+                              {role.permisos.length}p
+                            </span>
+                          </button>
+                        ))
                       )}
-                    </label>
-
-                    {/* Individual permissions */}
-                    <div className="p-3 space-y-2">
-                      {mod.permissions.map((perm) => (
-                        <label
-                          key={perm.value}
-                          className="flex items-center gap-3 cursor-pointer py-1"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={hasPermission(permisos, perm.value)}
-                            disabled={isSuper || isModWildcard}
-                            onChange={() => togglePermission(perm.value)}
-                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary accent-primary disabled:opacity-50"
-                          />
-                          <div className="flex flex-col">
-                            <span className="text-sm text-foreground/80">{perm.label}</span>
-                            <code className="text-[10px] text-muted-foreground font-mono">{perm.value}</code>
-                          </div>
-                        </label>
-                      ))}
                     </div>
-                  </div>
-                )
-              })}
+                  </>
+                )}
+              </div>
             </div>
+
+            {/* Effective permissions summary */}
+            {assignedRoles.length > 0 && (
+              <div className="rounded-lg border border-border/50 p-4 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Permisos efectivos
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[...new Set(assignedRoles.flatMap((r) => r.permisos.map((p) => p.modulo)))].map((mod) => {
+                    const perms = [...new Set(
+                      assignedRoles
+                        .flatMap((r) => r.permisos)
+                        .filter((p) => p.modulo === mod)
+                        .map((p) => p.accion)
+                    )]
+                    return (
+                      <span
+                        key={mod}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-muted text-muted-foreground"
+                      >
+                        <span className="font-medium text-foreground">{mod}</span>
+                        {perms.map((a) => (
+                          <span
+                            key={a}
+                            className={cn(
+                              'font-medium',
+                              a === 'read' ? 'text-blue-500' :
+                              a === 'write' ? 'text-amber-500' :
+                              'text-red-500'
+                            )}
+                          >
+                            {a[0].toUpperCase()}
+                          </span>
+                        ))}
+                      </span>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Actions */}

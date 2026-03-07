@@ -5,6 +5,7 @@ import {
   Building2,
   FolderKanban,
   FileText,
+  Image,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -38,6 +39,7 @@ const menuItems: MenuItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, path: ROUTES.HOME },
   { label: 'Clientes', icon: Building2, path: ROUTES.CLIENTS, permission: 'clientes:read' },
   { label: 'Proyectos', icon: FolderKanban, path: ROUTES.PROJECTS, permission: 'proyectos:read' },
+  { label: 'Media', icon: Image, path: ROUTES.MEDIA },
   { label: 'Cotizaciones', icon: FileText, path: ROUTES.QUOTES, permission: 'cotizaciones:read' },
   {
     label: 'Administracion',
@@ -45,6 +47,7 @@ const menuItems: MenuItem[] = [
     permission: 'usuarios:read',
     children: [
       { label: 'Usuarios', path: ROUTES.ADMIN_USERS, permission: 'usuarios:read' },
+      { label: 'Roles', path: ROUTES.ADMIN_ROLES, permission: 'roles:read' },
     ],
   },
 ]

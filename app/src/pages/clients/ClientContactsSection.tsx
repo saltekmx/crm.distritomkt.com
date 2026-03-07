@@ -27,11 +27,12 @@ import {
 // ---------------------------------------------------------------------------
 
 interface Contact {
-  id: string
+  id: number
   nombre: string
   email: string | null
   telefono: string | null
   cargo: string | null
+  fecha_cumpleanos: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -43,6 +44,7 @@ const contactSchema = z.object({
   email: z.string().email('Email invalido').or(z.literal('')).optional(),
   telefono: z.string().optional(),
   cargo: z.string().optional(),
+  fecha_cumpleanos: z.string().optional(),
 })
 
 type ContactFormData = z.infer<typeof contactSchema>
@@ -69,7 +71,7 @@ export default function ClientContactsSection({ clientId }: Props) {
     formState: { errors },
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
-    defaultValues: { nombre: '', email: '', telefono: '', cargo: '' },
+    defaultValues: { nombre: '', email: '', telefono: '', cargo: '', fecha_cumpleanos: '' },
   })
 
   const fetchContacts = useCallback(() => {
@@ -90,7 +92,7 @@ export default function ClientContactsSection({ clientId }: Props) {
 
   const openCreate = () => {
     setEditingContact(null)
-    reset({ nombre: '', email: '', telefono: '', cargo: '' })
+    reset({ nombre: '', email: '', telefono: '', cargo: '', fecha_cumpleanos: '' })
     setDialogOpen(true)
   }
 
@@ -101,6 +103,7 @@ export default function ClientContactsSection({ clientId }: Props) {
       email: contact.email ?? '',
       telefono: contact.telefono ?? '',
       cargo: contact.cargo ?? '',
+      fecha_cumpleanos: contact.fecha_cumpleanos ?? '',
     })
     setDialogOpen(true)
   }
@@ -112,6 +115,7 @@ export default function ClientContactsSection({ clientId }: Props) {
       email: data.email || undefined,
       telefono: data.telefono || undefined,
       cargo: data.cargo || undefined,
+      fecha_cumpleanos: data.fecha_cumpleanos || undefined,
     }
     try {
       if (editingContact) {
@@ -172,6 +176,7 @@ export default function ClientContactsSection({ clientId }: Props) {
                 <th className="px-6 py-3 font-medium">Email</th>
                 <th className="px-6 py-3 font-medium">Telefono</th>
                 <th className="px-6 py-3 font-medium">Cargo</th>
+                <th className="px-6 py-3 font-medium">Cumpleaños</th>
                 <th className="px-6 py-3 font-medium w-14"></th>
               </tr>
             </thead>
@@ -183,12 +188,13 @@ export default function ClientContactsSection({ clientId }: Props) {
                     <td className="px-6 py-4"><div className="h-3.5 w-32 rounded bg-muted animate-pulse" /></td>
                     <td className="px-6 py-4"><div className="h-3.5 w-24 rounded bg-muted animate-pulse" /></td>
                     <td className="px-6 py-4"><div className="h-3.5 w-20 rounded bg-muted animate-pulse" /></td>
+                    <td className="px-6 py-4"><div className="h-3.5 w-20 rounded bg-muted animate-pulse" /></td>
                     <td className="px-6 py-4"><div className="h-8 w-8 rounded bg-muted animate-pulse" /></td>
                   </tr>
                 ))
               ) : contacts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <Users className="mx-auto h-8 w-8 text-muted-foreground/40" />
                     <p className="mt-2 text-sm text-muted-foreground">No hay contactos registrados</p>
                     <p className="mt-1 text-xs text-muted-foreground/60">Agrega un contacto para este cliente</p>
@@ -208,6 +214,13 @@ export default function ClientContactsSection({ clientId }: Props) {
                     </td>
                     <td className="px-6 py-3.5">
                       <span className="text-sm text-muted-foreground">{contact.cargo || '—'}</span>
+                    </td>
+                    <td className="px-6 py-3.5">
+                      <span className="text-sm text-muted-foreground">
+                        {contact.fecha_cumpleanos
+                          ? new Date(contact.fecha_cumpleanos + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+                          : '—'}
+                      </span>
                     </td>
                     <td className="px-6 py-3.5">
                       <DropdownMenu>
@@ -283,13 +296,23 @@ export default function ClientContactsSection({ clientId }: Props) {
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="contact-cargo">Cargo</Label>
-              <Input
-                id="contact-cargo"
-                placeholder="Ej. Director de Marketing"
-                {...register('cargo')}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="contact-cargo">Cargo</Label>
+                <Input
+                  id="contact-cargo"
+                  placeholder="Ej. Director de Marketing"
+                  {...register('cargo')}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contact-cumpleanos">Fecha de cumpleaños</Label>
+                <Input
+                  id="contact-cumpleanos"
+                  type="date"
+                  {...register('fecha_cumpleanos')}
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button

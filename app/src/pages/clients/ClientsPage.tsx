@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/alert-dialog'
 
 interface Client {
-  id: string
+  id: number
   nombre: string
   rfc: string | null
   industria: string | null
@@ -47,7 +47,7 @@ interface ClientsResponse {
 }
 
 interface Contact {
-  id: string
+  id: number
   nombre: string
   email: string | null
   telefono: string | null
@@ -374,7 +374,7 @@ export default function ClientsPage() {
                   limite: Number(e.target.value) === DEFAULT_PAGE_SIZE ? null : e.target.value,
                   pagina: null,
                 })}
-                className="h-8 rounded-md border border-border-hover bg-transparent px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                className="h-8 rounded-md border border-border-hover bg-card px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring [&>option]:bg-card [&>option]:text-foreground"
               >
                 {PAGE_SIZES.map((size) => (
                   <option key={size} value={size}>{size}</option>

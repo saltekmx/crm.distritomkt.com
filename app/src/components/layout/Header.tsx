@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Moon, Sun, Settings, LogOut, User, ChevronDown, Bot } from 'lucide-react'
+import { Moon, Sun, LogOut, User, ChevronDown, Bot } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   AlertDialog,
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useTheme } from '@/hooks/useTheme'
 import { cn, getInitials } from '@/lib/utils'
 import { ROUTES } from '@/lib/routes'
@@ -38,6 +39,8 @@ export function Header({ aiPanelOpen, onToggleAiPanel }: HeaderProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const stopImpersonation = useAuthStore((s) => s.stopImpersonation)
   const isImpersonating = useAuthStore((s) => s.isImpersonating)()
+  const { hasPermission } = usePermissions()
+  const canUseAi = hasPermission('ai:read')
 
   return (
     <>
@@ -76,18 +79,20 @@ export function Header({ aiPanelOpen, onToggleAiPanel }: HeaderProps) {
             </button>
 
             {/* AI Panel Toggle */}
-            <button
-              onClick={onToggleAiPanel}
-              className={cn(
-                'flex items-center justify-center w-10 h-10 rounded-xl cursor-pointer transition-all duration-200',
-                aiPanelOpen
-                  ? 'bg-primary/15 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-              title="Asistente AI"
-            >
-              <Bot className="h-5 w-5" />
-            </button>
+            {canUseAi && (
+              <button
+                onClick={onToggleAiPanel}
+                className={cn(
+                  'flex items-center justify-center w-10 h-10 rounded-xl cursor-pointer transition-all duration-200',
+                  aiPanelOpen
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
+                title="Asistente AI"
+              >
+                <Bot className="h-5 w-5" />
+              </button>
+            )}
 
             {/* Divider */}
             <div className="w-px h-8 bg-border mx-2" />
@@ -131,14 +136,7 @@ export function Header({ aiPanelOpen, onToggleAiPanel }: HeaderProps) {
                         className="flex items-center gap-3 w-full px-3 py-2 text-sm text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
                       >
                         <User className="h-4 w-4 text-muted-foreground" />
-                        Mi Perfil
-                      </button>
-                      <button
-                        onClick={() => setShowUserMenu(false)}
-                        className="flex items-center gap-3 w-full px-3 py-2 text-sm text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
-                      >
-                        <Settings className="h-4 w-4 text-muted-foreground" />
-                        Configuración
+                        Mi Perfil y Preferencias
                       </button>
                       <div className="my-1 h-px bg-border" />
                       <button
