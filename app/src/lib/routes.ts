@@ -18,4 +18,5 @@ export const ROUTES = {
   ADMIN_ROLES_NEW: '/admin/roles/nuevo',
   ADMIN_ROLES_EDIT: (id: number | string) => `/admin/roles/${id}`,
   PROFILE: '/perfil',
+  STUDIO: (id: number | string) => `/proyectos/${id}/estudio`,
 } as const

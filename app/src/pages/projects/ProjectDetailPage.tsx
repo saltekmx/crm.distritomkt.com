@@ -4,7 +4,7 @@ import {
   ArrowLeft, ExternalLink, Calendar, Building2, User,
   Activity, FileText, ShoppingCart, FolderOpen, MessageSquare,
   History, Receipt, CreditCard, CheckCircle, Lock, Zap,
-  Banknote, Package, Loader2,
+  Banknote, Package, Loader2, Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { projectsApi } from '@/services/api'
@@ -324,12 +324,20 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         </div>
-        <Link to={ROUTES.PROJECTS_EDIT(project.id)}>
-          <Button variant="outline" className="gap-2">
-            <ExternalLink className="h-4 w-4" />
-            Editar
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link to={ROUTES.STUDIO(project.id)}>
+            <Button variant="outline" className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              AI Studio
+            </Button>
+          </Link>
+          <Link to={ROUTES.PROJECTS_EDIT(project.id)}>
+            <Button variant="outline" className="gap-2">
+              <ExternalLink className="h-4 w-4" />
+              Editar
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Tabs */}

@@ -18,6 +18,9 @@ import MediaPage from '@/pages/MediaPage'
 import ProfilePage from '@/pages/ProfilePage'
 import RolesPage from '@/pages/admin/RolesPage'
 import RoleFormPage from '@/pages/admin/RoleFormPage'
+import { lazy, Suspense } from 'react'
+
+const StudioPage = lazy(() => import('@/pages/studio/StudioPage'))
 
 function App() {
   return (
@@ -154,6 +157,18 @@ function App() {
           />
           <Route path="/perfil" element={<ProfilePage />} />
         </Route>
+
+        {/* Studio — standalone full-screen (outside MainLayout) */}
+        <Route
+          path="/proyectos/:id/estudio"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<div className="h-screen flex items-center justify-center bg-zinc-950"><div className="animate-spin h-8 w-8 border-2 border-violet-500 border-t-transparent rounded-full" /></div>}>
+                <StudioPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
 
         {/* 404 */}
         <Route path="*" element={<NotFoundPage />} />
