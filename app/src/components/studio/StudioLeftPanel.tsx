@@ -1,16 +1,15 @@
-import { Palette, FolderOpen, Video } from 'lucide-react'
+import { Palette, FolderOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStudioAiStore, type LeftTab } from '@/stores/studioAiStore'
 import { AdjustTab } from './tabs/AdjustTab'
 import { GalleryTab } from './tabs/GalleryTab'
-import { VideoTab } from './tabs/VideoTab'
+import { VideoModePanel } from './VideoModePanel'
 
 const RAIL_WIDTH = 40
 
-const tabs: { key: LeftTab; icon: typeof Palette; label: string }[] = [
+const IMAGE_TABS: { key: LeftTab; icon: typeof Palette; label: string }[] = [
   { key: 'adjust', icon: Palette, label: 'Editar' },
   { key: 'gallery', icon: FolderOpen, label: 'Galeria' },
-  { key: 'video', icon: Video, label: 'Video' },
 ]
 
 interface StudioLeftPanelProps {
@@ -18,25 +17,31 @@ interface StudioLeftPanelProps {
 }
 
 export function StudioLeftPanel({ projectId }: StudioLeftPanelProps) {
-  const { leftTab, setLeftTab } = useStudioAiStore()
+  const { leftTab, setLeftTab, studioMode } = useStudioAiStore()
 
-  const handleTabClick = (tab: LeftTab) => {
-    setLeftTab(tab)
+  // Video mode: single panel with projects + gallery, no tab rail
+  if (studioMode === 'video') {
+    return (
+      <div className="h-full flex shrink-0">
+        <div className="h-full w-[300px] bg-zinc-900 border-r border-zinc-800 flex flex-col">
+          <VideoModePanel />
+        </div>
+      </div>
+    )
   }
 
-  const contentWidth = leftTab === 'video' ? 'w-[380px]' : 'w-[300px]'
-
+  // Image mode: tab rail + content
   return (
     <div className="h-full flex shrink-0">
-      {/* Icon rail (always visible, left edge) */}
+      {/* Icon rail */}
       <div
         className="h-full bg-zinc-900 border-r border-zinc-800 flex flex-col items-center pt-3 gap-1 shrink-0"
         style={{ width: RAIL_WIDTH }}
       >
-        {tabs.map(({ key, icon: Icon, label }) => (
+        {IMAGE_TABS.map(({ key, icon: Icon, label }) => (
           <button
             key={key}
-            onClick={() => handleTabClick(key)}
+            onClick={() => setLeftTab(key)}
             className={cn(
               'w-8 h-8 rounded-lg flex items-center justify-center transition-colors',
               leftTab === key
@@ -50,12 +55,11 @@ export function StudioLeftPanel({ projectId }: StudioLeftPanelProps) {
         ))}
       </div>
 
-      {/* Content area (conditionally rendered) */}
+      {/* Content area */}
       {leftTab !== null && (
-        <div className={cn('h-full bg-zinc-900 border-r border-zinc-800 flex flex-col', contentWidth)}>
+        <div className="h-full w-[300px] bg-zinc-900 border-r border-zinc-800 flex flex-col">
           {leftTab === 'adjust' && <AdjustTab />}
           {leftTab === 'gallery' && <GalleryTab />}
-          {leftTab === 'video' && <VideoTab projectId={projectId} />}
         </div>
       )}
     </div>

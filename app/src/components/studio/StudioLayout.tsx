@@ -11,6 +11,7 @@ import { StudioLeftPanel } from './StudioLeftPanel'
 import { StudioRightPanel } from './StudioRightPanel'
 import { StudioHome } from './StudioHome'
 import { StudioDashboard } from './StudioDashboard'
+import { StudioVideoPipeline } from './StudioVideoPipeline'
 
 export function StudioLayout() {
   const { id } = useParams<{ id: string }>()
@@ -27,6 +28,8 @@ export function StudioLayout() {
     setStudioMode,
     leftTab,
     activeImageId,
+    selectedVideoProjectId,
+    setSelectedVideoProjectId,
   } = useStudioAiStore()
 
   const isGenerating = storeGenerating || aiGenerating
@@ -70,12 +73,20 @@ export function StudioLayout() {
     if (latest) setSelectedImageId(latest.id)
   }, [generations, selectedImageId, setSelectedImageId, leftTab])
 
-  // When entering video mode, auto-set leftTab to 'video'
+  // When entering a mode, auto-set appropriate leftTab and project
   useEffect(() => {
     if (studioMode === 'video') {
-      useStudioAiStore.setState({ leftTab: 'video' })
+      // Auto-select current project if none selected
+      if (!selectedVideoProjectId && projectId) {
+        setSelectedVideoProjectId(projectId)
+      }
+    } else if (studioMode === 'image') {
+      const currentTab = useStudioAiStore.getState().leftTab
+      if (currentTab === 'scenes' || currentTab === 'assets') {
+        useStudioAiStore.setState({ leftTab: 'gallery' })
+      }
     }
-  }, [studioMode])
+  }, [studioMode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derive canvas generation from activeImageId (focused) or selectedImageId
   const activeId = activeImageId ?? selectedImageId
@@ -132,10 +143,9 @@ export function StudioLayout() {
           </div>
         )}
 
-        {(studioMode === 'image' || studioMode === 'video') && (
+        {studioMode === 'image' && (
           <div className="flex-1 flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-500">
-            {/* Image mode: Dashboard (infinite canvas) is primary, StudioCanvas when focused */}
-            {studioMode === 'image' && activeImageId !== null ? (
+            {activeImageId !== null ? (
               <div className="flex-1 flex">
                 <StudioCanvas
                   generation={selectedGeneration}
@@ -143,18 +153,15 @@ export function StudioLayout() {
                   onVariation={handleVariation}
                 />
               </div>
-            ) : studioMode === 'image' ? (
-              <StudioDashboard />
             ) : (
-              /* Video mode */
-              <div className="flex-1 flex">
-                <StudioCanvas
-                  generation={selectedGeneration}
-                  isGenerating={isGenerating}
-                  onVariation={handleVariation}
-                />
-              </div>
+              <StudioDashboard />
             )}
+          </div>
+        )}
+
+        {studioMode === 'video' && (
+          <div className="flex-1 flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <StudioVideoPipeline projectId={selectedVideoProjectId} />
           </div>
         )}
 

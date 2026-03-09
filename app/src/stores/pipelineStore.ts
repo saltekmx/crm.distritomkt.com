@@ -35,7 +35,7 @@ interface PipelineStore {
   exportedMediaIds: number[]
 
   initPipeline: (projectId: number) => Promise<void>
-  startPipeline: (projectId: number, briefOverride?: string) => Promise<void>
+  startPipeline: (projectId: number, briefOverride?: string, referenceImageUrls?: string[]) => Promise<void>
   generateScenes: (sceneIds?: number[], quality?: string) => Promise<void>
   submitRevision: (sceneId: number, feedback: string) => Promise<void>
   approveScene: (sceneId: number) => Promise<void>
@@ -56,6 +56,8 @@ interface PipelineStore {
   duplicateScene: (sceneId: number) => Promise<void>
   reorderScenes: (sceneIds: number[]) => Promise<void>
   generateSingleScene: (sceneId: number, quality?: string) => Promise<void>
+  cancelGeneration: (pipelineId: number) => Promise<void>
+  setSceneReferenceAsset: (sceneId: number, assetId: number | null) => Promise<void>
   reloadPipeline: () => Promise<void>
   reset: () => void
 }
@@ -78,12 +80,13 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     }
   },
 
-  startPipeline: async (projectId, briefOverride) => {
+  startPipeline: async (projectId, briefOverride, referenceImageUrls) => {
     set({ isLoading: true, currentStage: 'brief', error: null })
     try {
       const { data } = await pipelineApi.start({
         project_id: projectId,
         brief_override: briefOverride,
+        reference_image_urls: referenceImageUrls?.length ? referenceImageUrls : undefined,
       })
       set({
         pipeline: data,
@@ -138,7 +141,10 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     set({ isLoading: true, exportProgress: null, exportedMediaIds: [], error: null })
     try {
       await pipelineApi.exportPipeline(pipeline.id, { format })
-      set({ currentStage: 'export' })
+      set((state) => ({
+        currentStage: 'export',
+        pipeline: state.pipeline ? { ...state.pipeline, estado: 'exporting' } : null,
+      }))
       toast.success('Exportación iniciada — los videos se enviarán al CRM')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error al exportar pipeline'
@@ -338,6 +344,36 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
       toast.success('Generando escena...')
     } catch {
       toast.error('Error al generar escena')
+    }
+  },
+
+  cancelGeneration: async (pipelineId) => {
+    try {
+      await pipelineApi.cancelPipeline(pipelineId)
+      // Reload from server to get accurate state
+      await get().reloadPipeline()
+      set({ currentStage: 'planned', isLoading: false })
+      toast.success('Generacion cancelada')
+    } catch {
+      toast.error('Error al cancelar generacion')
+    }
+  },
+
+  setSceneReferenceAsset: async (sceneId, assetId) => {
+    try {
+      await pipelineApi.updateScene(sceneId, { reference_asset_id: assetId } as any)
+      set((state) => ({
+        pipeline: state.pipeline
+          ? {
+              ...state.pipeline,
+              escenas: state.pipeline.escenas.map((s) =>
+                s.id === sceneId ? { ...s, reference_asset_id: assetId } : s,
+              ),
+            }
+          : null,
+      }))
+    } catch {
+      toast.error('Error al asignar imagen de referencia')
     }
   },
 

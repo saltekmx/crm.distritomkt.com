@@ -58,7 +58,8 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
 
   // Detect video mode
   const activeScene = pipeline?.escenas?.find((s) => s.id === activeSceneId) ?? null
-  const isVideoMode = leftTab === 'video' && activeSceneId != null
+  const studioMode = useStudioAiStore((s) => s.studioMode)
+  const isVideoMode = studioMode === 'video' && activeSceneId != null
 
   const [input, setInput] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)

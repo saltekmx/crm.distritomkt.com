@@ -12,7 +12,7 @@ export interface StudioAiMessage {
 }
 
 export type PanelTab = 'generate' | 'adjust' | 'gallery'
-export type LeftTab = 'adjust' | 'gallery' | 'video'
+export type LeftTab = 'adjust' | 'gallery' | 'scenes' | 'assets'
 
 // ── Hub (AI Chat Home) types ──────────────────────────────────────────────────
 
@@ -79,6 +79,7 @@ interface StudioAiStore {
 
   // Focused image (null = dashboard view, number = single-image editor)
   activeImageId: number | null
+  selectedVideoProjectId: number | null
 
   // Multi-selection
   selectedImageIds: Set<number>
@@ -132,6 +133,8 @@ interface StudioAiStore {
   sendHubMessage: (text: string, projectId: number, attachments?: Array<{ url: string; key: string; nombre: string; mime: string }>) => Promise<void>
   executeQuickAction: (actionKey: string, projectId: number) => void
   _executeAction: (action: HubAction, projectId: number) => void
+
+  setSelectedVideoProjectId: (id: number | null) => void
 
   // Canvas focus actions
   setActiveImage: (id: number | null) => void
@@ -237,6 +240,7 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
 
     // Focused image (null = dashboard, number = single-image editor)
     activeImageId: null,
+    selectedVideoProjectId: null,
 
     // Multi-selection
     selectedImageIds: new Set(),
@@ -515,6 +519,8 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
 
     clearMessages: () => set({ messages: [] }),
 
+    setSelectedVideoProjectId: (id) => set({ selectedVideoProjectId: id }),
+
     // ── Hub actions ───────────────────────────────────────────────────────────
 
     setStudioMode: (mode) => set({ studioMode: mode }),
@@ -698,7 +704,7 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
         },
         'Crear Videos': {
           reply: 'Preparando el pipeline de video. Vamos a crear contenido cinematico!',
-          transition: () => set({ studioMode: 'video', leftTab: 'video' }),
+          transition: () => set({ studioMode: 'video', leftTab: 'scenes' }),
           delay: 1200,
         },
         'Ver Galeria': {
@@ -793,7 +799,7 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
         }
 
         case 'open_video_pipeline':
-          set({ studioMode: 'video', leftTab: 'video' })
+          set({ studioMode: 'video', leftTab: 'scenes' })
           break
 
         case 'show_gallery':

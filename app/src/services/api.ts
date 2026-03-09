@@ -450,12 +450,14 @@ export interface PipelineScene {
   descripcion: string | null
   veo_prompt: string | null
   historial_prompts: Array<Record<string, unknown>>
+  reference_asset_id: number | null
   video_url: string | null
   thumbnail_url: string | null
   duracion_seg: number
   aspect_ratio: string
   aprobado: boolean
   estado: 'pending' | 'generating' | 'complete' | 'failed' | 'approved'
+  elapsed_sec?: number
   actualizado_en: string
 }
 
@@ -616,7 +618,7 @@ export const pipelineApi = {
   get: (pipelineId: number) =>
     api.get<Pipeline>(`/pipeline/${pipelineId}`),
 
-  start: (data: { project_id: number; brief_override?: string }) =>
+  start: (data: { project_id: number; brief_override?: string; reference_image_urls?: string[] }) =>
     api.post<Pipeline>('/pipeline/start', data),
 
   generate: (pipelineId: number, data: { scene_ids: number[] | null; quality?: string }) =>
@@ -650,6 +652,9 @@ export const pipelineApi = {
   generateScene: (pipelineId: number, sceneId: number, quality?: string) =>
     api.post(`/pipeline/${pipelineId}/scenes/${sceneId}/generate`, { quality: quality || 'veo-3.1-fast' }),
 
+  cancelPipeline: (pipelineId: number) =>
+    api.post(`/pipeline/${pipelineId}/cancel`),
+
   // Comments
   getComments: (pipelineId: number, sceneId: number) =>
     api.get<PipelineComment[]>(`/pipeline/${pipelineId}/comments/${sceneId}`),
@@ -662,6 +667,9 @@ export const pipelineApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+
+  importAssetUrl: (pipelineId: number, imageUrl: string, fileName: string) =>
+    api.post<PipelineAsset>('/pipeline/assets/import-url', { pipeline_id: pipelineId, image_url: imageUrl, file_name: fileName }),
 
   // WebSocket URL (for real-time updates)
   wsUrl: (pipelineId: number) =>

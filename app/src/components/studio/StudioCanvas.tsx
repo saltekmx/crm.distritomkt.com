@@ -1,19 +1,17 @@
 import {
   ImageIcon, ZoomIn, ZoomOut, RotateCcw, Maximize, Copy,
   Shuffle, Info, Grid3X3, Sun, Moon,
-  Play, Pause, Repeat, AlertTriangle, Loader2, Video,
-  CheckCircle2, RefreshCw, Eye, Link2, Download, ArrowUpRight,
+  Loader2, Eye, Link2, Download, ArrowUpRight,
   Plus, X, Palette, GitBranch, Repeat2, Image as ImageLucide,
   ArrowRight, ArrowLeft,
 } from 'lucide-react'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { studioApi, type StudioGeneration, type PipelineScene } from '@/services/api'
+import { studioApi, type StudioGeneration } from '@/services/api'
 import { useStudioAiStore } from '@/stores/studioAiStore'
 import { useStudioStore } from '@/stores/studioStore'
 import { useStudioCanvasStore, type CanvasBg } from '@/stores/studioCanvasStore'
-import { usePipelineStore } from '@/stores/pipelineStore'
 import { QuickControls } from './QuickControls'
 import { CropOverlay } from './CropOverlay'
 
@@ -21,473 +19,6 @@ interface StudioCanvasProps {
   generation: StudioGeneration | null
   isGenerating: boolean
   onVariation?: (gen: StudioGeneration) => void
-}
-
-// ─── Time Formatting Helper ─────────────────────────────────────────────────
-
-function formatTime(seconds: number): string {
-  if (!isFinite(seconds) || seconds < 0) return '0:00'
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
-
-// ─── Status Label Helper ────────────────────────────────────────────────────
-
-function getStatusLabel(estado: PipelineScene['estado']): string {
-  const map: Record<PipelineScene['estado'], string> = {
-    pending: 'Pendiente',
-    generating: 'Generando',
-    complete: 'Completo',
-    failed: 'Error',
-    approved: 'Aprobado',
-  }
-  return map[estado] ?? estado
-}
-
-function getStatusColor(estado: PipelineScene['estado']): string {
-  const map: Record<PipelineScene['estado'], string> = {
-    pending: 'bg-zinc-600 text-zinc-200',
-    generating: 'bg-amber-600/80 text-amber-100',
-    complete: 'bg-emerald-600/80 text-emerald-100',
-    failed: 'bg-red-600/80 text-red-100',
-    approved: 'bg-violet-600/80 text-violet-100',
-  }
-  return map[estado] ?? 'bg-zinc-600 text-zinc-200'
-}
-
-// ─── Video Player Section ───────────────────────────────────────────────────
-
-function VideoPlayerSection({ scene }: { scene: PipelineScene }) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const progressRef = useRef<HTMLDivElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [currentTime, setCurrentTime] = useState(0)
-  const [duration, setDuration] = useState(0)
-  const [playbackRate, setPlaybackRate] = useState(1)
-  const [isLooping, setIsLooping] = useState(false)
-  const [isVideoLoaded, setIsVideoLoaded] = useState(false)
-
-  const { approveScene, generateSingleScene } = usePipelineStore()
-
-  // Sync video events
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-
-    const handleTimeUpdate = () => setCurrentTime(video.currentTime)
-    const handleLoadedMetadata = () => {
-      setDuration(video.duration)
-      setIsVideoLoaded(true)
-    }
-    const handleEnded = () => setIsPlaying(false)
-    const handlePlay = () => setIsPlaying(true)
-    const handlePause = () => setIsPlaying(false)
-
-    video.addEventListener('timeupdate', handleTimeUpdate)
-    video.addEventListener('loadedmetadata', handleLoadedMetadata)
-    video.addEventListener('ended', handleEnded)
-    video.addEventListener('play', handlePlay)
-    video.addEventListener('pause', handlePause)
-
-    return () => {
-      video.removeEventListener('timeupdate', handleTimeUpdate)
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata)
-      video.removeEventListener('ended', handleEnded)
-      video.removeEventListener('play', handlePlay)
-      video.removeEventListener('pause', handlePause)
-    }
-  }, [scene.video_url])
-
-  // Reset state when scene changes
-  useEffect(() => {
-    setIsPlaying(false)
-    setCurrentTime(0)
-    setDuration(0)
-    setIsVideoLoaded(false)
-    setPlaybackRate(1)
-  }, [scene.id])
-
-  const togglePlayPause = useCallback(() => {
-    const video = videoRef.current
-    if (!video) return
-    if (video.paused) {
-      video.play()
-    } else {
-      video.pause()
-    }
-  }, [])
-
-  const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const video = videoRef.current
-    const bar = progressRef.current
-    if (!video || !bar) return
-    const rect = bar.getBoundingClientRect()
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-    video.currentTime = ratio * video.duration
-  }, [])
-
-  const handleSetPlaybackRate = useCallback((rate: number) => {
-    const video = videoRef.current
-    if (!video) return
-    video.playbackRate = rate
-    setPlaybackRate(rate)
-  }, [])
-
-  const handleToggleLoop = useCallback(() => {
-    const video = videoRef.current
-    if (!video) return
-    video.loop = !video.loop
-    setIsLooping(!isLooping)
-  }, [isLooping])
-
-  const handleToggleFullscreen = useCallback(() => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen()
-    } else {
-      containerRef.current?.requestFullscreen()
-    }
-  }, [])
-
-  // Keyboard shortcuts for video mode
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return
-
-      switch (e.key) {
-        case ' ':
-          e.preventDefault()
-          togglePlayPause()
-          break
-        case 'f':
-        case 'F':
-          e.preventDefault()
-          handleToggleFullscreen()
-          break
-        case 'ArrowLeft': {
-          e.preventDefault()
-          const video = videoRef.current
-          if (video) video.currentTime = Math.max(0, video.currentTime - 5)
-          break
-        }
-        case 'ArrowRight': {
-          e.preventDefault()
-          const video = videoRef.current
-          if (video) video.currentTime = Math.min(video.duration, video.currentTime + 5)
-          break
-        }
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [togglePlayPause, handleToggleFullscreen])
-
-  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0
-
-  // Scene has a video ready to play
-  if (scene.video_url && (scene.estado === 'complete' || scene.estado === 'approved')) {
-    return (
-      <div ref={containerRef} className="flex-1 flex flex-col relative overflow-hidden bg-zinc-950">
-        {/* Dark background pattern */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
-          }}
-        />
-
-        {/* Scene info overlay (top-left) */}
-        <div className="absolute top-4 left-4 z-10 flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
-          <div className="flex items-center gap-2 bg-zinc-900/90 border border-zinc-800 rounded-lg px-3 py-2 backdrop-blur-sm">
-            <Video className="h-3.5 w-3.5 text-violet-400" />
-            <span className="text-xs font-medium text-zinc-200">
-              Escena {scene.orden}
-            </span>
-            <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', getStatusColor(scene.estado))}>
-              {getStatusLabel(scene.estado)}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800 rounded-lg px-2.5 py-2 backdrop-blur-sm text-[11px] text-zinc-400">
-            <span>{scene.duracion_seg}s</span>
-            <span className="text-zinc-600">|</span>
-            <span>{scene.aspect_ratio}</span>
-          </div>
-        </div>
-
-        {/* Video area */}
-        <div className="flex-1 flex items-center justify-center relative">
-          <video
-            ref={videoRef}
-            src={scene.video_url}
-            className="max-w-[75vw] max-h-[65vh] rounded-lg shadow-2xl shadow-black/50 object-contain"
-            preload="metadata"
-            playsInline
-            onClick={togglePlayPause}
-            style={{ cursor: 'pointer' }}
-          />
-
-          {/* Large centered play button when paused */}
-          {!isPlaying && isVideoLoaded && (
-            <button
-              onClick={togglePlayPause}
-              className="absolute inset-0 flex items-center justify-center group"
-              aria-label="Reproducir"
-            >
-              <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center group-hover:bg-white/20 transition-colors">
-                <Play className="h-7 w-7 text-white ml-1" />
-              </div>
-            </button>
-          )}
-
-          {/* Loading indicator before video loads */}
-          {!isVideoLoaded && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-violet-500/50" />
-            </div>
-          )}
-        </div>
-
-        {/* Approve/reject buttons for complete but unapproved scenes */}
-        {scene.estado === 'complete' && !scene.aprobado && (
-          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 flex gap-2 z-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <button
-              onClick={() => approveScene(scene.id)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-emerald-600/25"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Aprobar Escena
-            </button>
-          </div>
-        )}
-
-        {/* Video controls bar (bottom) */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[min(90%,640px)] z-10">
-          <div className="bg-zinc-900/95 border border-zinc-800 rounded-xl backdrop-blur-sm overflow-hidden">
-            {/* Progress bar */}
-            <div
-              ref={progressRef}
-              className="h-1.5 bg-zinc-800 cursor-pointer group hover:h-2.5 transition-all"
-              onClick={handleSeek}
-            >
-              <div
-                className="h-full bg-violet-500 rounded-r-full relative transition-[width] duration-75"
-                style={{ width: `${progressPercent}%` }}
-              >
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-            </div>
-
-            {/* Controls row */}
-            <div className="flex items-center gap-2 px-3 py-2">
-              {/* Play/Pause */}
-              <button
-                onClick={togglePlayPause}
-                className="p-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors"
-                aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
-                title={isPlaying ? 'Pausar (Espacio)' : 'Reproducir (Espacio)'}
-              >
-                {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
-              </button>
-
-              {/* Time display */}
-              <span className="text-[11px] text-zinc-400 font-mono min-w-[70px]">
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </span>
-
-              <div className="flex-1" />
-
-              {/* Playback speed */}
-              <div className="flex items-center gap-0.5">
-                {[0.5, 1, 2].map((rate) => (
-                  <button
-                    key={rate}
-                    onClick={() => handleSetPlaybackRate(rate)}
-                    className={cn(
-                      'px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors',
-                      playbackRate === rate
-                        ? 'bg-violet-500/20 text-violet-300'
-                        : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800',
-                    )}
-                    title={`Velocidad ${rate}x`}
-                  >
-                    {rate}x
-                  </button>
-                ))}
-              </div>
-
-              <div className="h-4 w-px bg-zinc-700 mx-0.5" />
-
-              {/* Loop toggle */}
-              <button
-                onClick={handleToggleLoop}
-                className={cn(
-                  'p-1.5 rounded-lg transition-colors',
-                  isLooping ? 'text-violet-400 bg-violet-500/10' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800',
-                )}
-                aria-label="Repetir"
-                title="Repetir"
-              >
-                <Repeat className="h-3.5 w-3.5" />
-              </button>
-
-              {/* Fullscreen */}
-              <button
-                onClick={handleToggleFullscreen}
-                className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
-                aria-label="Pantalla completa"
-                title="Pantalla completa (F)"
-              >
-                <Maximize className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Keyboard shortcuts hint */}
-        <div className="absolute bottom-4 right-4 text-[10px] text-zinc-700 select-none pointer-events-none">
-          <p>Espacio Play | F Full | ←→ Saltar 5s</p>
-        </div>
-      </div>
-    )
-  }
-
-  // Scene is generating
-  if (scene.estado === 'generating') {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-zinc-950 relative overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
-          }}
-        />
-
-        {/* Scene info at top-left */}
-        <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-zinc-900/90 border border-zinc-800 rounded-lg px-3 py-2 backdrop-blur-sm">
-            <Video className="h-3.5 w-3.5 text-amber-400" />
-            <span className="text-xs font-medium text-zinc-200">Escena {scene.orden}</span>
-            <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', getStatusColor(scene.estado))}>
-              {getStatusLabel(scene.estado)}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-col items-center gap-5 z-10">
-          <div className="w-20 h-20 rounded-2xl bg-violet-500/10 flex items-center justify-center">
-            <Loader2 className="h-10 w-10 text-violet-500/60 animate-spin" />
-          </div>
-          <div className="text-center space-y-1.5">
-            <p className="text-sm text-zinc-300 font-medium">Generando video...</p>
-            <p className="text-xs text-zinc-500 max-w-xs">
-              {scene.descripcion ?? 'Procesando escena con Veo'}
-            </p>
-            {scene.elapsed_sec != null && scene.elapsed_sec > 0 && (
-              <p className="text-[11px] text-zinc-600 font-mono">
-                {Math.floor(scene.elapsed_sec / 60)}:{(Math.floor(scene.elapsed_sec) % 60).toString().padStart(2, '0')} transcurrido
-              </p>
-            )}
-          </div>
-          <div className="w-48 h-1 bg-zinc-800 rounded-full overflow-hidden">
-            <div className="h-full w-1/3 bg-violet-500/50 rounded-full animate-pulse" />
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Scene failed
-  if (scene.estado === 'failed') {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-zinc-950 relative overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
-          }}
-        />
-
-        {/* Scene info at top-left */}
-        <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-zinc-900/90 border border-zinc-800 rounded-lg px-3 py-2 backdrop-blur-sm">
-            <Video className="h-3.5 w-3.5 text-red-400" />
-            <span className="text-xs font-medium text-zinc-200">Escena {scene.orden}</span>
-            <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', getStatusColor(scene.estado))}>
-              {getStatusLabel(scene.estado)}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-col items-center gap-4 z-10">
-          <div className="w-20 h-20 rounded-2xl bg-red-500/10 flex items-center justify-center">
-            <AlertTriangle className="h-10 w-10 text-red-500/60" />
-          </div>
-          <div className="text-center space-y-1.5">
-            <p className="text-sm text-zinc-300 font-medium">Error al generar video</p>
-            <p className="text-xs text-zinc-500 max-w-xs">
-              {scene.descripcion ?? 'Ocurrio un error durante la generacion de esta escena.'}
-            </p>
-          </div>
-          <button
-            onClick={() => generateSingleScene(scene.id)}
-            className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Reintentar
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  // Scene is pending (no video yet)
-  return (
-    <div className="flex-1 flex flex-col items-center justify-center bg-zinc-950 relative overflow-hidden">
-      <div
-        className="absolute inset-0 opacity-[0.03]"
-        style={{
-          backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)',
-          backgroundSize: '24px 24px',
-        }}
-      />
-
-      {/* Scene info at top-left */}
-      <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-        <div className="flex items-center gap-2 bg-zinc-900/90 border border-zinc-800 rounded-lg px-3 py-2 backdrop-blur-sm">
-          <Video className="h-3.5 w-3.5 text-zinc-400" />
-          <span className="text-xs font-medium text-zinc-200">Escena {scene.orden}</span>
-          <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', getStatusColor(scene.estado))}>
-            {getStatusLabel(scene.estado)}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex flex-col items-center gap-4 z-10 max-w-md text-center px-4">
-        <div className="w-20 h-20 rounded-2xl bg-zinc-800/50 flex items-center justify-center">
-          <Video className="h-10 w-10 text-zinc-700" />
-        </div>
-        <div className="space-y-1.5">
-          <p className="text-sm text-zinc-400">Video pendiente de generacion</p>
-          {scene.descripcion && (
-            <p className="text-xs text-zinc-500 leading-relaxed">{scene.descripcion}</p>
-          )}
-        </div>
-        {scene.veo_prompt && (
-          <div className="bg-zinc-800/50 border border-zinc-800 rounded-lg p-3 w-full">
-            <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Prompt</p>
-            <p className="text-[11px] text-zinc-400 font-mono leading-relaxed line-clamp-4">
-              {scene.veo_prompt}
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  )
 }
 
 // ─── Color Palette Extractor ─────────────────────────────────────────────────
@@ -543,9 +74,6 @@ export function StudioCanvas({ generation, isGenerating, onVariation }: StudioCa
   const setBg = useCallback((v: CanvasBg) => canvasStore.setBg(imageId, v), [canvasStore, imageId])
   const getTransformStyle = useCallback(() => canvasStore.getTransformStyle(imageId), [canvasStore, imageId])
 
-  // Pipeline store for video mode
-  const { activeSceneId, pipeline } = usePipelineStore()
-  const leftTab = useStudioAiStore((s) => s.leftTab)
   const describeImage = useStudioAiStore((s) => s.describeImage)
   const isDescribing = useStudioAiStore((s) => s.isDescribing)
   const upscaleImage = useStudioAiStore((s) => s.upscaleImage)
@@ -557,12 +85,6 @@ export function StudioCanvas({ generation, isGenerating, onVariation }: StudioCa
   const selectedImageIds = useStudioAiStore((s) => s.selectedImageIds)
   const clearSelection = useStudioAiStore((s) => s.clearSelection)
   const setReferenceImageUrl = useStudioAiStore((s) => s.setReferenceImageUrl)
-
-  // Find the active scene
-  const activeScene = pipeline?.escenas?.find((s) => s.id === activeSceneId) ?? null
-
-  // Determine whether to show video player
-  const showVideoPlayer = leftTab === 'video' && activeScene != null
 
   // Reset info/colors when image changes (zoom/pan/edits are per-image in store)
   useEffect(() => {
@@ -579,10 +101,8 @@ export function StudioCanvas({ generation, isGenerating, onVariation }: StudioCa
   const imageIdRef = useRef(imageId)
   imageIdRef.current = imageId
 
-  // Keyboard shortcuts (only active in image mode)
+  // Keyboard shortcuts
   useEffect(() => {
-    if (showVideoPlayer) return // Video player has its own keyboard handling
-
     const handler = (e: KeyboardEvent) => {
       // Don't capture if user is typing in an input
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return
@@ -651,12 +171,10 @@ export function StudioCanvas({ generation, isGenerating, onVariation }: StudioCa
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [showVideoPlayer])
+  }, [])
 
-  // Non-passive wheel listener for zoom (image mode only)
+  // Non-passive wheel listener for zoom
   useEffect(() => {
-    if (showVideoPlayer) return
-
     const el = canvasRef.current
     if (!el) return
     const handler = (e: WheelEvent) => {
@@ -666,7 +184,7 @@ export function StudioCanvas({ generation, isGenerating, onVariation }: StudioCa
     }
     el.addEventListener('wheel', handler, { passive: false })
     return () => el.removeEventListener('wheel', handler)
-  }, [showVideoPlayer])
+  }, [])
 
   const toggleFullscreen = () => {
     if (document.fullscreenElement) {
@@ -712,14 +230,6 @@ export function StudioCanvas({ generation, isGenerating, onVariation }: StudioCa
     checker: 'bg-zinc-900',
     light: 'bg-zinc-300',
   }
-
-  // ─── Video Mode ──────────────────────────────────────────────────────────
-
-  if (showVideoPlayer) {
-    return <VideoPlayerSection scene={activeScene} />
-  }
-
-  // ─── Image Mode (existing behavior, unchanged) ───────────────────────────
 
   return (
     <div className={cn('flex-1 flex flex-col relative overflow-hidden transition-colors duration-300', bgStyles[bg])}>
