@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Moon, Sun, LogOut, User, ChevronDown, Bot } from 'lucide-react'
+import { Moon, Sun, LogOut, Settings, ChevronDown, Bot } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   AlertDialog,
@@ -94,6 +94,17 @@ export function Header({ aiPanelOpen, onToggleAiPanel }: HeaderProps) {
               </button>
             )}
 
+            {/* Logout */}
+            <button
+              onClick={() => setShowLogoutConfirm(true)}
+              className="flex items-center justify-center w-10 h-10 rounded-xl cursor-pointer
+                         text-muted-foreground hover:text-destructive hover:bg-destructive/10
+                         transition-all duration-200"
+              title="Cerrar sesión"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+
             {/* Divider */}
             <div className="w-px h-8 bg-border mx-2" />
 
@@ -135,19 +146,8 @@ export function Header({ aiPanelOpen, onToggleAiPanel }: HeaderProps) {
                         }}
                         className="flex items-center gap-3 w-full px-3 py-2 text-sm text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
                       >
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        Mi Perfil y Preferencias
-                      </button>
-                      <div className="my-1 h-px bg-border" />
-                      <button
-                        onClick={() => {
-                          setShowUserMenu(false)
-                          setShowLogoutConfirm(true)
-                        }}
-                        className="flex items-center gap-3 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        Cerrar Sesión
+                        <Settings className="h-4 w-4 text-muted-foreground" />
+                        Configuración
                       </button>
                     </div>
                   </div>

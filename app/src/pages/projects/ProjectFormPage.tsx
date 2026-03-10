@@ -1,23 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAiFill } from '@/hooks/useAiFill'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { FolderKanban, Pencil, Loader2, ArrowLeft, FileText } from 'lucide-react'
+import { FolderKanban, Pencil, Loader2, ArrowLeft, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { projectsApi } from '@/services/api'
 import { ROUTES } from '@/lib/routes'
-import { PROJECT_CATEGORIES, getCategory } from '@/lib/projects'
 import { ClientCombobox } from '@/components/ClientCombobox'
+import { CategoryPicker } from '@/components/CategoryPicker'
+import { RichTextEditor } from '@/components/RichTextEditor'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -28,7 +25,6 @@ const projectSchema = z.object({
   tipo: z.string().min(1, 'La categoría es requerida'),
   subcategoria: z.string().optional(),
   cliente_id: z.number().min(1, 'El cliente es requerido'),
-  fecha_inicio: z.string().optional(),
   fecha_entrega: z.string().optional(),
   notas: z.string().optional(),
 })
@@ -45,7 +41,6 @@ interface ProjectState {
   tipo: string
   subcategoria: string | null
   cliente_id: number
-  fecha_inicio: string | null
   fecha_entrega: string | null
   notas: string | null
 }
@@ -71,7 +66,6 @@ export default function ProjectFormPage() {
       tipo: projectFromState?.tipo ?? '',
       subcategoria: projectFromState?.subcategoria ?? '',
       cliente_id: projectFromState?.cliente_id ?? (0),
-      fecha_inicio: projectFromState?.fecha_inicio?.slice(0, 10) ?? '',
       fecha_entrega: projectFromState?.fecha_entrega?.slice(0, 10) ?? '',
       notas: projectFromState?.notas ?? '',
     },
@@ -80,22 +74,9 @@ export default function ProjectFormPage() {
   const { register, handleSubmit, setValue, watch, formState: { errors } } = form
   useAiFill(form)
 
+  const clienteValue = watch('cliente_id')
   const tipoValue = watch('tipo')
   const subcategoriaValue = watch('subcategoria')
-  const clienteValue = watch('cliente_id')
-
-  // Get subcategories for the selected category
-  const selectedCategory = getCategory(tipoValue)
-  const subcategories = selectedCategory?.subcategories ?? []
-  const hasSubcategories = subcategories.length > 0
-
-  // Clear subcategoria when tipo changes and it's no longer valid
-  const prevTipoRef = useRef(tipoValue)
-  useEffect(() => {
-    if (prevTipoRef.current === tipoValue) return
-    prevTipoRef.current = tipoValue
-    setValue('subcategoria', '')
-  }, [tipoValue, setValue])
 
   // Load project from API if editing without state
   useEffect(() => {
@@ -109,7 +90,7 @@ export default function ProjectFormPage() {
         setValue('tipo', p.tipo ?? '')
         setValue('subcategoria', p.subcategoria ?? '')
         setValue('cliente_id', p.cliente_id ?? (0))
-        setValue('fecha_inicio', p.fecha_inicio?.slice(0, 10) ?? '')
+        // fecha_inicio removed from form
         setValue('fecha_entrega', p.fecha_entrega?.slice(0, 10) ?? '')
         setValue('notas', p.notas ?? '')
       })
@@ -127,7 +108,6 @@ export default function ProjectFormPage() {
       tipo: data.tipo,
       subcategoria: data.subcategoria || null,
       cliente_id: data.cliente_id,
-      fecha_inicio: data.fecha_inicio || undefined,
       fecha_entrega: data.fecha_entrega || undefined,
       notas: data.notas || undefined,
     }
@@ -169,12 +149,8 @@ export default function ProjectFormPage() {
 
       <div className="card-modern">
         <form onSubmit={handleSubmit(onSubmit)}>
-          {/* Info General */}
-          <div className="p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <FolderKanban className="h-5 w-5 text-primary" />
-              <h3 className="text-sm font-semibold">Información del Proyecto</h3>
-            </div>
+          <div className="p-6 space-y-5">
+            {/* Row 1: Nombre (full width) */}
             <div className="space-y-2">
               <Label htmlFor="nombre">Nombre del proyecto *</Label>
               <Input
@@ -187,7 +163,9 @@ export default function ProjectFormPage() {
                 <p className="text-xs text-destructive">{errors.nombre.message}</p>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+            {/* Row 2: Cliente + Categoría + Fecha */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <div className="space-y-2">
                 <Label>Cliente *</Label>
                 <ClientCombobox
@@ -201,54 +179,18 @@ export default function ProjectFormPage() {
               </div>
               <div className="space-y-2">
                 <Label>Categoría *</Label>
-                <Select
-                  value={tipoValue}
-                  onValueChange={(val) => setValue('tipo', val, { shouldValidate: true })}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Seleccionar categoría..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PROJECT_CATEGORIES.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <CategoryPicker
+                  tipo={tipoValue}
+                  subcategoria={subcategoriaValue ?? ''}
+                  onSelect={(tipo, sub) => {
+                    setValue('tipo', tipo, { shouldValidate: true })
+                    setValue('subcategoria', sub)
+                  }}
+                  error={errors.tipo?.message}
+                />
                 {errors.tipo && (
                   <p className="text-xs text-destructive">{errors.tipo.message}</p>
                 )}
-              </div>
-            </div>
-
-            {/* Subcategory — only shown when selected category has subcategories */}
-            {hasSubcategories && (
-              <div className="space-y-2">
-                <Label>Subcategoría</Label>
-                <Select
-                  value={subcategoriaValue || ''}
-                  onValueChange={(val) => setValue('subcategoria', val)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Seleccionar subcategoría..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subcategories.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Dates */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2">
-              <div className="space-y-2">
-                <Label htmlFor="fecha_inicio">Fecha de inicio</Label>
-                <Input
-                  id="fecha_inicio"
-                  type="date"
-                  {...register('fecha_inicio')}
-                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="fecha_entrega">Fecha de entrega</Label>
@@ -259,20 +201,31 @@ export default function ProjectFormPage() {
                 />
               </div>
             </div>
-          </div>
 
-          {/* Descripción */}
-          <div className="border-t border-border/30 p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              <h3 className="text-sm font-semibold">Descripción del Proyecto</h3>
+            {/* Descripción del proyecto */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="notas">Descripción del proyecto</Label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const vals = form.getValues()
+                    const parts = ['Ayúdame a generar la descripción de este proyecto']
+                    if (vals.nombre) parts.push(`Nombre: ${vals.nombre}`)
+                    window.dispatchEvent(new CustomEvent('ai:open', { detail: { message: parts.join('. ') } }))
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Generar con AI
+                </button>
+              </div>
+              <RichTextEditor
+                value={watch('notas') ?? ''}
+                onChange={(html) => setValue('notas', html, { shouldDirty: true })}
+                placeholder="¿De qué trata el proyecto? Puedes escribir libremente o usar el asistente AI para generar una descripción estructurada."
+              />
             </div>
-            <Textarea
-              id="notas"
-              placeholder="Descripción general del proyecto..."
-              rows={4}
-              {...register('notas')}
-            />
           </div>
 
           {/* Actions */}

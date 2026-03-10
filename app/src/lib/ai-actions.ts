@@ -29,16 +29,21 @@ export function dispatchAiAction(
     case 'fill_form': {
       const route = action.payload.route as string | undefined
       const fields = action.payload.fields as Record<string, unknown> | undefined
-      if (route) {
+      // Only navigate if route differs from current location
+      const needsNav = route && window.location.pathname !== route
+      if (needsNav) {
         navigate(route)
       }
       if (fields) {
-        // Small delay to let the form component mount after navigation
+        const dispatch = () =>
+          window.dispatchEvent(new CustomEvent('ai:fill', { detail: { fields } }))
+        // Delay when navigating to let the form mount; retry once for safety
+        const delay = needsNav ? 600 : 50
         setTimeout(() => {
-          window.dispatchEvent(
-            new CustomEvent('ai:fill', { detail: { fields } })
-          )
-        }, route ? 400 : 0)
+          dispatch()
+          // Retry after a short extra delay to catch late-mounting forms
+          if (needsNav) setTimeout(dispatch, 400)
+        }, delay)
       }
       break
     }

@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuthStore } from '@/stores/authStore'
+import { usePermissions } from '@/hooks/usePermissions'
 import { getInitials } from '@/lib/utils'
 
 interface User {
@@ -43,8 +44,8 @@ function getPermissionsLabel(permisos: string[]): string {
 
 export default function UsersPage() {
   const navigate = useNavigate()
-  const currentUser = useAuthStore((s) => s.user)
-  const isSuperAdmin = currentUser?.permissions?.includes('*') ?? false
+  const { hasPermission } = usePermissions()
+  const canImpersonate = hasPermission('usuarios.impersonate:write')
   const [searchParams, setSearchParams] = useSearchParams()
 
   const search = searchParams.get('buscar') ?? ''
@@ -242,7 +243,7 @@ export default function UsersPage() {
                           <Pencil className="h-4 w-4" />
                           Editar usuario
                         </DropdownMenuItem>
-                        {isSuperAdmin && (
+                        {canImpersonate && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -257,7 +258,7 @@ export default function UsersPage() {
                               }}
                             >
                               <LogIn className="h-4 w-4" />
-                              Login as
+                              Impersonar
                             </DropdownMenuItem>
                           </>
                         )}

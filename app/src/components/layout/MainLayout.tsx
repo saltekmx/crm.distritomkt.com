@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
@@ -24,10 +24,23 @@ export function MainLayout() {
   const saved = loadAiPanel()
   const [aiPanelOpen, setAiPanelOpen] = useState(saved.open)
   const [aiPanelWidth, setAiPanelWidth] = useState(saved.width)
+  const [aiAutoMessage, setAiAutoMessage] = useState<string | null>(null)
 
   const persistPanel = (open: boolean, width: number) => {
     localStorage.setItem(AI_PANEL_KEY, JSON.stringify({ open, width }))
   }
+
+  // Listen for ai:open events from child components
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const msg = (e as CustomEvent).detail?.message as string | undefined
+      setAiPanelOpen(true)
+      persistPanel(true, aiPanelWidth)
+      if (msg) setAiAutoMessage(msg)
+    }
+    window.addEventListener('ai:open', handler)
+    return () => window.removeEventListener('ai:open', handler)
+  }, [aiPanelWidth])
 
   const handleToggleAiPanel = () => {
     const next = !aiPanelOpen
@@ -70,6 +83,8 @@ export function MainLayout() {
         onClose={handleCloseAiPanel}
         width={aiPanelWidth}
         onWidthChange={handleWidthChange}
+        autoMessage={aiAutoMessage}
+        onAutoMessageConsumed={() => setAiAutoMessage(null)}
       />
     </div>
   )

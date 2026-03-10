@@ -40,6 +40,37 @@ function getPageLabel(pathname: string): string {
 }
 
 const AI_NAME = 'DMKT Bot'
+
+/** Context-aware suggestions for the welcome screen based on current route. */
+function getContextSuggestions(pathname: string): { icon: string; label: string }[] | null {
+  if (/^\/proyectos\/nuevo$/.test(pathname) || /^\/proyectos\/[^/]+\/editar$/.test(pathname)) {
+    return [
+      { icon: '✨', label: 'Ayúdame a describir este proyecto' },
+      { icon: '📋', label: 'Tengo un brief, genera la descripción' },
+      { icon: '🎤', label: 'Te dicto de qué se trata el proyecto' },
+    ]
+  }
+  if (/^\/clientes\/nuevo$/.test(pathname)) {
+    return [
+      { icon: '👤', label: 'Ayúdame a dar de alta un cliente' },
+      { icon: '📄', label: 'Tengo una CIF, extrae los datos' },
+    ]
+  }
+  return null
+}
+
+function getContextGreeting(pathname: string): string | null {
+  if (/^\/proyectos\/nuevo$/.test(pathname)) {
+    return 'Veo que estás creando un proyecto. ¿Quieres que te ayude con la descripción?'
+  }
+  if (/^\/proyectos\/[^/]+\/editar$/.test(pathname)) {
+    return '¿Necesitas ayuda editando este proyecto?'
+  }
+  if (/^\/clientes\/nuevo$/.test(pathname)) {
+    return '¿Quieres que te ayude a registrar un nuevo cliente?'
+  }
+  return null
+}
 const MIN_WIDTH = 320
 const MAX_WIDTH = 700
 const WAVEFORM_BARS = 32
@@ -75,6 +106,8 @@ interface AiPanelProps {
   onClose: () => void
   width: number
   onWidthChange: (w: number) => void
+  autoMessage?: string | null
+  onAutoMessageConsumed?: () => void
 }
 
 // ---- Waveform visualizer component ----
@@ -163,7 +196,7 @@ function AiActions({
   )
 }
 
-export function AiPanel({ open, onClose, width, onWidthChange }: AiPanelProps) {
+export function AiPanel({ open, onClose, width, onWidthChange, autoMessage, onAutoMessageConsumed }: AiPanelProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const user = useUser()
@@ -692,6 +725,22 @@ export function AiPanel({ open, onClose, width, onWidthChange }: AiPanelProps) {
   const hasMessages = messages.length > 0
   const activeConv = conversations.find((c) => c.id === activeConvId)
 
+  // Auto-send message when triggered from outside (e.g. "Generar con AI" button)
+  useEffect(() => {
+    if (!autoMessage || !open) return
+    // Start a new conversation and auto-send
+    const timer = setTimeout(() => {
+      if (!isThinking) {
+        setActiveConvId(null)
+        setMessages([])
+        handleSend(autoMessage)
+      }
+      onAutoMessageConsumed?.()
+    }, 300)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoMessage, open])
+
   // Inline title editing in header
   const [editingHeaderTitle, setEditingHeaderTitle] = useState(false)
   const [headerTitleDraft, setHeaderTitleDraft] = useState('')
@@ -1051,15 +1100,17 @@ export function AiPanel({ open, onClose, width, onWidthChange }: AiPanelProps) {
                     Hola{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
                   </h3>
                   <p className="text-sm text-muted-foreground mb-8 max-w-[260px] leading-relaxed">
-                    Soy <span className="font-medium text-primary">{AI_NAME}</span>, tu asistente de DistritoMKT. Preguntame lo que necesites.
+                    {getContextGreeting(location.pathname) || (
+                      <>Soy <span className="font-medium text-primary">{AI_NAME}</span>, tu asistente de DistritoMKT. Preguntame lo que necesites.</>
+                    )}
                   </p>
 
                   <div className="w-full grid grid-cols-1 gap-2">
-                    {[
+                    {(getContextSuggestions(location.pathname) ?? [
                       { icon: '👤', label: 'Da de alta un nuevo cliente' },
                       { icon: '📋', label: 'Crea un proyecto nuevo' },
                       { icon: '🔍', label: 'Busca proyectos en proceso' },
-                    ].map((suggestion) => (
+                    ]).map((suggestion) => (
                       <button
                         key={suggestion.label}
                         onClick={() => {

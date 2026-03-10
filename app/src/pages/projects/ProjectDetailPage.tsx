@@ -308,10 +308,12 @@ export default function ProjectDetailPage() {
                 <FolderOpen className="h-4 w-4" />
                 {tipoLabel}
               </span>
-              <span className="flex items-center gap-1.5">
-                <Calendar className="h-4 w-4" />
-                {formatDate(project.fecha_inicio, tz)}
-              </span>
+              {project.fecha_entrega && (
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="h-4 w-4" />
+                  {formatDate(project.fecha_entrega, tz)}
+                </span>
+              )}
               {project.responsable_nombre && (
                 <>
                   <div className="h-5 w-px bg-muted-foreground/30" />
