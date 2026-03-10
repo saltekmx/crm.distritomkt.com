@@ -610,8 +610,32 @@ export const studioApi = {
 
 // ── Pipeline API ─────────────────────────────────────────────────────────────
 
+export interface PipelineListItem {
+  id: number
+  proyecto_id: number
+  proyecto_nombre: string
+  cliente_nombre: string
+  estado: string
+  total_escenas: number
+  escenas_completas: number
+  creado_en: string
+  actualizado_en: string
+}
+
+export interface SceneReference {
+  id: number
+  url_archivo: string
+  nombre_archivo: string | null
+  role: string
+  display_order: number
+  descripcion_ia: string | null
+}
+
 export const pipelineApi = {
   // Pipeline lifecycle
+  list: () =>
+    api.get<PipelineListItem[]>('/pipeline/list'),
+
   getByProject: (projectId: number) =>
     api.get<Pipeline>(`/pipeline/by-project/${projectId}`),
 
@@ -670,6 +694,16 @@ export const pipelineApi = {
 
   importAssetUrl: (pipelineId: number, imageUrl: string, fileName: string) =>
     api.post<PipelineAsset>('/pipeline/assets/import-url', { pipeline_id: pipelineId, image_url: imageUrl, file_name: fileName }),
+
+  // Scene references
+  addSceneReference: (sceneId: number, data: { image_url?: string; asset_id?: number; role?: string; file_name?: string }) =>
+    api.post<SceneReference>(`/pipeline/scenes/${sceneId}/references`, data),
+
+  removeSceneReference: (sceneId: number, assetId: number) =>
+    api.delete(`/pipeline/scenes/${sceneId}/references/${assetId}`),
+
+  listSceneReferences: (sceneId: number) =>
+    api.get<SceneReference[]>(`/pipeline/scenes/${sceneId}/references`),
 
   // WebSocket URL (for real-time updates)
   wsUrl: (pipelineId: number) =>
