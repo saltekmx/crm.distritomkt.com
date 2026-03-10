@@ -101,6 +101,10 @@ export function StudioCanvas({ generation, isGenerating, onVariation }: StudioCa
   const imageIdRef = useRef(imageId)
   imageIdRef.current = imageId
 
+  // Keep isCropping ref in sync so keyboard/mouse handlers always see current value
+  const isCroppingRef = useRef(isCropping)
+  useEffect(() => { isCroppingRef.current = isCropping }, [isCropping])
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -201,10 +205,10 @@ export function StudioCanvas({ generation, isGenerating, onVariation }: StudioCa
   }
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0 || isCropping) return
+    if (e.button !== 0 || isCroppingRef.current) return
     isPanning.current = true
     lastMouse.current = { x: e.clientX, y: e.clientY }
-  }, [isCropping])
+  }, [])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isPanning.current) return
@@ -280,8 +284,8 @@ export function StudioCanvas({ generation, isGenerating, onVariation }: StudioCa
             <div className="relative flex flex-col items-center">
               <div className="relative rounded-lg overflow-hidden opacity-60">
                 <img
-                  src={compareParent!.url_salida!}
-                  alt={compareParent!.prompt}
+                  src={compareParent?.url_salida ?? ''}
+                  alt={compareParent?.prompt ?? ''}
                   className={cn(
                     'max-w-[30vw] max-h-[50vh] rounded-lg',
                     bg === 'dark' && 'shadow-2xl shadow-black/50',
@@ -290,7 +294,7 @@ export function StudioCanvas({ generation, isGenerating, onVariation }: StudioCa
                 />
               </div>
               <span className="mt-2 px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-400">
-                Original #{compareParent!.id}
+                Original #{compareParent?.id}
               </span>
             </div>
 
@@ -335,8 +339,8 @@ export function StudioCanvas({ generation, isGenerating, onVariation }: StudioCa
           >
             <img
               ref={imageRef}
-              src={generation!.url_salida!}
-              alt={generation!.prompt}
+              src={generation?.url_salida ?? ''}
+              alt={generation?.prompt ?? ''}
               className={cn(
                 'max-w-[70vw] max-h-[60vh] rounded-lg',
                 bg === 'dark' && 'shadow-2xl shadow-black/50',
@@ -452,7 +456,7 @@ export function StudioCanvas({ generation, isGenerating, onVariation }: StudioCa
           >
             <Copy className="h-3.5 w-3.5" />
           </button>
-          {onVariation && (
+          {onVariation && generation && (
             <button
               onClick={() => onVariation(generation)}
               className="p-1 rounded text-zinc-400 hover:text-zinc-200 transition-colors"

@@ -12,17 +12,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePipelineStore } from '@/stores/pipelineStore'
-import type { PipelineScene } from '@/services/api'
-
-const MAX_SCENES = 8
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  pending: { label: 'Pendiente', color: 'text-zinc-400', dot: 'bg-zinc-500' },
-  generating: { label: 'Generando', color: 'text-amber-400', dot: 'bg-amber-500' },
-  complete: { label: 'Completo', color: 'text-blue-400', dot: 'bg-blue-500' },
-  failed: { label: 'Error', color: 'text-red-400', dot: 'bg-red-500' },
-  approved: { label: 'Aprobado', color: 'text-green-400', dot: 'bg-green-500' },
-}
+import { MAX_SCENES, STATUS_CONFIG } from '@/constants/pipeline'
+import { getVideoSrc, type PipelineScene } from '@/services/api'
 
 export function ScenesTab() {
   const {
@@ -138,7 +129,7 @@ function SceneItem({
         )}>
           {scene.thumbnail_url || scene.video_url ? (
             <video
-              src={scene.video_url ?? undefined}
+              src={getVideoSrc(scene.video_url)}
               poster={scene.thumbnail_url ?? undefined}
               className="w-full h-full object-cover"
               muted

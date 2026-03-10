@@ -16,7 +16,35 @@ export function AssetsTab({ projectId }: AssetsTabProps) {
   const [assets, setAssets] = useState<PipelineAsset[]>([])
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [loadingAssets, setLoadingAssets] = useState(false)
+  const [loadError, setLoadError] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Load existing assets when pipelineId changes
+  useEffect(() => {
+    if (!pipelineId) {
+      setAssets([])
+      return
+    }
+    let cancelled = false
+    const loadAssets = async () => {
+      setLoadingAssets(true)
+      setLoadError(false)
+      try {
+        const { data } = await pipelineApi.listAssets(pipelineId)
+        if (!cancelled) setAssets(data)
+      } catch {
+        if (!cancelled) {
+          setLoadError(true)
+          toast.error('Error al cargar assets')
+        }
+      } finally {
+        if (!cancelled) setLoadingAssets(false)
+      }
+    }
+    loadAssets()
+    return () => { cancelled = true }
+  }, [pipelineId])
 
   // Studio generations for "From Studio" import
   const generations = useStudioStore((s) => s.generations)
@@ -70,8 +98,13 @@ export function AssetsTab({ projectId }: AssetsTabProps) {
     [pipelineId],
   )
 
-  const removeAsset = (id: number) => {
-    setAssets((prev) => prev.filter((a) => a.id !== id))
+  const removeAsset = async (id: number) => {
+    try {
+      await pipelineApi.deleteAsset(id)
+      setAssets((prev) => prev.filter((a) => a.id !== id))
+    } catch {
+      toast.error('Error al eliminar asset')
+    }
   }
 
   return (
@@ -83,6 +116,20 @@ export function AssetsTab({ projectId }: AssetsTabProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-3">
+        {/* Loading state */}
+        {loadingAssets && (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-4 w-4 text-violet-400 animate-spin" />
+          </div>
+        )}
+
+        {/* Error state */}
+        {loadError && !loadingAssets && (
+          <p className="text-[10px] text-red-400 text-center py-2">
+            No se pudieron cargar los assets
+          </p>
+        )}
+
         {/* Drop zone */}
         <div
           className={cn(

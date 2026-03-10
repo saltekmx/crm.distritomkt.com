@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils'
 import { usePipelineStore } from '@/stores/pipelineStore'
 import { RevisionChat } from './RevisionChat'
 import { PromptHistoryViewer } from './PromptHistoryViewer'
-import type { PipelineScene } from '@/services/api'
+import { getVideoSrc, type PipelineScene } from '@/services/api'
 
 // ── Status badge config ─────────────────────────────────────────────────────
 
@@ -477,7 +477,7 @@ export function ReviewPanel() {
         {/* Enhanced Video Player */}
         <div className="space-y-3">
           {activeScene.video_url ? (
-            <VideoPlayer src={activeScene.video_url} />
+            <VideoPlayer src={getVideoSrc(activeScene.video_url) || ''} />
           ) : (
             <div className="card-modern flex aspect-video items-center justify-center bg-muted">
               <p className="text-sm text-muted-foreground">Video no disponible</p>

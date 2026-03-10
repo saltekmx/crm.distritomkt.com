@@ -3,6 +3,7 @@ import { Download, Loader2, Check, Film, Library, Archive, Clock, Clapperboard }
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { usePipelineStore } from '@/stores/pipelineStore'
+import { getVideoSrc } from '@/services/api'
 
 const formats = [
   { value: 'mp4', label: 'MP4' },
@@ -78,7 +79,7 @@ export function ExportPanel() {
               <div className="relative h-28">
                 {scene.video_url ? (
                   <video
-                    src={scene.video_url}
+                    src={getVideoSrc(scene.video_url)}
                     className="h-full w-full object-cover"
                     muted
                     preload="metadata"
@@ -104,7 +105,7 @@ export function ExportPanel() {
                   <button
                     type="button"
                     onClick={() =>
-                      handleDownload(scene.video_url!, `escena-${scene.orden}.${format}`)
+                      handleDownload(getVideoSrc(scene.video_url) || '', `escena-${scene.orden}.${format}`)
                     }
                     className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     title="Descargar"
@@ -224,7 +225,7 @@ export function ExportPanel() {
                       className="gap-1.5"
                       onClick={() =>
                         handleDownload(
-                          scene.video_url!,
+                          getVideoSrc(scene.video_url) || '',
                           `escena-${scene.orden}.${format}`
                         )
                       }
@@ -262,7 +263,7 @@ export function ExportPanel() {
                     className="gap-2"
                     onClick={() =>
                       handleDownload(
-                        scene.video_url!,
+                        getVideoSrc(scene.video_url) || '',
                         `escena-${scene.orden}.${format}`
                       )
                     }

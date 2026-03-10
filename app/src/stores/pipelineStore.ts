@@ -361,7 +361,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
 
   setSceneReferenceAsset: async (sceneId, assetId) => {
     try {
-      await pipelineApi.updateScene(sceneId, { reference_asset_id: assetId } as any)
+      await pipelineApi.updateScene(sceneId, { reference_asset_id: assetId })
       set((state) => ({
         pipeline: state.pipeline
           ? {

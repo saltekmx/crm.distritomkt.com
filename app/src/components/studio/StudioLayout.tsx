@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { Toaster } from 'sonner'
@@ -55,7 +55,7 @@ export function StudioLayout() {
       resetStudio()
       resetAi()
     }
-  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, projectId, setProjectId, loadGenerations, resetStudio, resetAi])
 
   // Auto-select latest completed image if none selected (only matters for image/video modes)
   // Skip auto-select when gallery is open — user is browsing, not editing
@@ -73,12 +73,18 @@ export function StudioLayout() {
     if (latest) setSelectedImageId(latest.id)
   }, [generations, selectedImageId, setSelectedImageId, leftTab])
 
+  // Keep refs for values used in mode-change effect that should not trigger re-runs
+  const selectedVideoProjectIdRef = useRef(selectedVideoProjectId)
+  useEffect(() => { selectedVideoProjectIdRef.current = selectedVideoProjectId }, [selectedVideoProjectId])
+  const projectIdRef = useRef(projectId)
+  useEffect(() => { projectIdRef.current = projectId }, [projectId])
+
   // When entering a mode, auto-set appropriate leftTab and project
   useEffect(() => {
     if (studioMode === 'video') {
       // Auto-select current project if none selected
-      if (!selectedVideoProjectId && projectId) {
-        setSelectedVideoProjectId(projectId)
+      if (!selectedVideoProjectIdRef.current && projectIdRef.current) {
+        setSelectedVideoProjectId(projectIdRef.current)
       }
     } else if (studioMode === 'image') {
       const currentTab = useStudioAiStore.getState().leftTab
@@ -86,7 +92,7 @@ export function StudioLayout() {
         useStudioAiStore.setState({ leftTab: 'gallery' })
       }
     }
-  }, [studioMode]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [studioMode, setSelectedVideoProjectId])
 
   // Derive canvas generation from activeImageId (focused) or selectedImageId
   const activeId = activeImageId ?? selectedImageId

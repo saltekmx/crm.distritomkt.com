@@ -1,7 +1,7 @@
 import { Check, Loader2, AlertCircle, RefreshCw, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { PipelineScene } from '@/services/api'
+import { getVideoSrc, type PipelineScene } from '@/services/api'
 
 interface Props {
   scene: PipelineScene
@@ -36,7 +36,7 @@ export function SceneCard({ scene, onSelect, onRetry }: Props) {
         {scene.video_url && (scene.estado === 'complete' || scene.estado === 'approved') ? (
           <>
             <video
-              src={scene.video_url}
+              src={getVideoSrc(scene.video_url)}
               className="h-full w-full object-cover"
               muted
               preload="metadata"
@@ -53,7 +53,7 @@ export function SceneCard({ scene, onSelect, onRetry }: Props) {
         ) : scene.video_url && scene.estado !== 'generating' ? (
           /* Fallback: video_url exists but not in complete/approved — still show thumbnail */
           <video
-            src={scene.video_url}
+            src={getVideoSrc(scene.video_url)}
             className="h-full w-full object-cover rounded"
             muted
             preload="metadata"

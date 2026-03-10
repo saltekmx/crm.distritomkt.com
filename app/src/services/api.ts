@@ -129,6 +129,19 @@ function forceLogout() {
   window.location.href = '/iniciar-sesion'
 }
 
+/**
+ * Build a browser-accessible video URL. For proxy URLs (/api/v1/pipeline/...),
+ * appends the JWT token as a query param since <video src> can't send headers.
+ */
+export function getVideoSrc(url: string | null): string | undefined {
+  if (!url) return undefined
+  if (!url.startsWith('/api/')) return url
+  const token = localStorage.getItem('token')
+  if (!token) return url
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}token=${token}`
+}
+
 // Auth endpoints — matches /api/v1/auth/*
 export const authApi = {
   /** Returns the full URL for Google OAuth redirect (browser navigates directly) */
@@ -658,7 +671,7 @@ export const pipelineApi = {
     api.post(`/pipeline/${pipelineId}/export`, data),
 
   // Scene CRUD
-  updateScene: (sceneId: number, data: Partial<{ description: string; veo_prompt: string; duration_sec: number; aspect_ratio: string }>) =>
+  updateScene: (sceneId: number, data: Partial<{ description: string; veo_prompt: string; duration_sec: number; aspect_ratio: string; reference_asset_id: number | null }>) =>
     api.patch<PipelineScene>(`/pipeline/scenes/${sceneId}`, data),
 
   addScene: (pipelineId: number, data: { description: string; veo_prompt?: string; duration_sec?: number; aspect_ratio?: string }) =>
@@ -694,6 +707,12 @@ export const pipelineApi = {
 
   importAssetUrl: (pipelineId: number, imageUrl: string, fileName: string) =>
     api.post<PipelineAsset>('/pipeline/assets/import-url', { pipeline_id: pipelineId, image_url: imageUrl, file_name: fileName }),
+
+  listAssets: (pipelineId: number) =>
+    api.get<PipelineAsset[]>(`/pipeline/${pipelineId}/assets`),
+
+  deleteAsset: (assetId: number) =>
+    api.delete(`/pipeline/assets/${assetId}`),
 
   // Scene references
   addSceneReference: (sceneId: number, data: { image_url?: string; asset_id?: number; role?: string; file_name?: string }) =>

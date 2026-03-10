@@ -6,6 +6,27 @@ import { toast } from 'sonner'
 import { useStudioAiStore } from '@/stores/studioAiStore'
 import { useStudioStore } from '@/stores/studioStore'
 
+/** Paginated list response from the backend */
+interface PaginatedResponse<T> {
+  elementos: T[]
+  total: number
+  pagina: number
+  por_pagina: number
+}
+
+interface ProjectListElement {
+  id: number
+  nombre: string
+  tipo?: string
+  cliente_nombre?: string
+  status_operativo?: string
+}
+
+interface ClientListElement {
+  id: number
+  nombre: string
+}
+
 interface ProjectItem {
   id: number
   nombre: string
@@ -30,6 +51,7 @@ export function VideoModePanel() {
   const [clients, setClients] = useState<Array<{ id: number; nombre: string }>>([])
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
   const [creating, setCreating] = useState(false)
+  const [clientsError, setClientsError] = useState(false)
 
   // Load projects on mount
   useEffect(() => {
@@ -37,7 +59,8 @@ export function VideoModePanel() {
     const load = async () => {
       try {
         const { data } = await projectsApi.list({ limit: 50 })
-        const items: ProjectItem[] = ((data as any).elementos ?? []).map((p: any) => ({
+        const paginated = data as PaginatedResponse<ProjectListElement>
+        const items: ProjectItem[] = (paginated.elementos ?? []).map((p) => ({
           id: p.id,
           nombre: p.nombre,
           tipo: p.tipo || '',
@@ -47,7 +70,7 @@ export function VideoModePanel() {
         }))
         if (!cancelled) setProjects(items)
       } catch {
-        // silently fail
+        toast.error('Error al cargar proyectos')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -56,14 +79,19 @@ export function VideoModePanel() {
     return () => { cancelled = true }
   }, [])
 
-  // Load clients when create form opens
+  // Load clients when create form opens (retries on error)
   useEffect(() => {
-    if (!showCreate || clients.length > 0) return
+    if (!showCreate || (clients.length > 0 && !clientsError)) return
+    setClientsError(false)
     clientsApi.list({ limit: 50 }).then(({ data }) => {
-      const items = ((data as any).elementos ?? []).map((c: any) => ({ id: c.id, nombre: c.nombre }))
+      const paginated = data as PaginatedResponse<ClientListElement>
+      const items = (paginated.elementos ?? []).map((c) => ({ id: c.id, nombre: c.nombre }))
       setClients(items)
       if (items.length > 0 && !selectedClientId) setSelectedClientId(items[0].id)
-    }).catch(() => {})
+    }).catch(() => {
+      setClientsError(true)
+      toast.error('Error al cargar clientes')
+    })
   }, [showCreate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreate = async () => {
@@ -75,14 +103,15 @@ export function VideoModePanel() {
         nombre: newName.trim(),
         tipo: newType,
       })
-      const created = data as any
+      const created = data as ProjectListElement
       setProjects((prev) => [{ id: created.id, nombre: created.nombre, tipo: created.tipo || newType, cliente_nombre: '', pipelineStatus: null }, ...prev])
       setSelectedVideoProjectId(created.id)
       setShowCreate(false)
       setNewName('')
       toast.success('Proyecto creado')
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail || 'Error al crear proyecto'
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: string } } }
+      const detail = axiosErr?.response?.data?.detail || 'Error al crear proyecto'
       toast.error(detail)
     } finally {
       setCreating(false)

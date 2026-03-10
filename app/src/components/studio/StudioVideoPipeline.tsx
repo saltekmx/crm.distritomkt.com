@@ -29,13 +29,12 @@ import { cn } from '@/lib/utils'
 import { usePipelineStore, type UIStage } from '@/stores/pipelineStore'
 import { useStudioStore } from '@/stores/studioStore'
 import { usePipelineWebSocket } from '@/hooks/usePipelineWebSocket'
-import { pipelineApi, type PipelineScene } from '@/services/api'
+import { pipelineApi, getVideoSrc, type PipelineScene } from '@/services/api'
+import { MAX_SCENES, STATUS_CONFIG } from '@/constants/pipeline'
 import { useRef } from 'react'
 import { toast } from 'sonner'
 
 // ── Constants ────────────────────────────────────────────────────────────────
-
-const MAX_SCENES = 8
 
 const DURATION_OPTIONS = [
   { value: 4, label: '4s' },
@@ -54,14 +53,6 @@ const QUALITY_OPTIONS = [
   { value: 'veo-3.1-fast', label: 'Veo 3.1 Fast' },
   { value: 'veo-3.1', label: 'Veo 3.1 HQ' },
 ]
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  pending: { label: 'Pendiente', color: 'text-zinc-400', dot: 'bg-zinc-500' },
-  generating: { label: 'Generando', color: 'text-amber-400', dot: 'bg-amber-500' },
-  complete: { label: 'Completo', color: 'text-blue-400', dot: 'bg-blue-500' },
-  failed: { label: 'Error', color: 'text-red-400', dot: 'bg-red-500' },
-  approved: { label: 'Aprobado', color: 'text-green-400', dot: 'bg-green-500' },
-}
 
 const STAGE_LABELS: Record<UIStage, string> = {
   idle: 'Sin iniciar',
@@ -130,15 +121,9 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
   }, [pipeline?.brief_snapshot]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // WebSocket for live updates
-  usePipelineWebSocket(pipeline?.id ?? null)
+  const { connectionLost } = usePipelineWebSocket(pipeline?.id ?? null)
 
   const handleStartPipeline = () => {
-    if (!projectId) return
-    const override = briefText.trim() || undefined
-    startPipeline(projectId, override, selectedImages.length ? selectedImages : undefined)
-  }
-
-  const handleReanalyze = () => {
     if (!projectId) return
     const override = briefText.trim() || undefined
     startPipeline(projectId, override, selectedImages.length ? selectedImages : undefined)
@@ -215,6 +200,16 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
         }}
       />
 
+      {/* Connection lost banner */}
+      {connectionLost && pipeline && (
+        <div className="relative z-20 px-4 py-2 bg-red-500/10 border-b border-red-500/20 flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+          <p className="text-[11px] text-red-300">
+            Conexion perdida. Las actualizaciones en tiempo real no estan disponibles.
+          </p>
+        </div>
+      )}
+
       {/* Pipeline Stepper */}
       <PipelineStepper currentStage={currentStage} onStageClick={(stage) => {
         usePipelineStore.getState().setStage(stage)
@@ -248,7 +243,7 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
             onDeleteScene={deleteScene}
             onAddScene={handleAddScene}
             onGenerateAll={handleGenerateAll}
-            onReanalyze={handleReanalyze}
+            onReanalyze={handleStartPipeline}
             onDropReferenceOnScene={handleDropReferenceOnScene}
           />
         )}
@@ -769,21 +764,36 @@ function EditableSceneCard({
     setIsEditing(true)
   }
 
-  const handleSaveEdit = (e: React.MouseEvent) => {
+  const handleSaveEdit = async (e: React.MouseEvent) => {
     e.stopPropagation()
+    const prevDesc = scene.descripcion ?? ''
+    const prevPrompt = scene.veo_prompt ?? ''
+    const prevDuration = scene.duracion_seg
+    const prevAspect = scene.aspect_ratio
     onUpdateLocal({
       descripcion: editDesc,
       veo_prompt: editPrompt,
       duracion_seg: editDuration,
       aspect_ratio: editAspect,
     })
-    onSaveRemote({
-      description: editDesc,
-      veo_prompt: editPrompt,
-      duration_sec: editDuration,
-      aspect_ratio: editAspect,
-    })
     setIsEditing(false)
+    try {
+      await onSaveRemote({
+        description: editDesc,
+        veo_prompt: editPrompt,
+        duration_sec: editDuration,
+        aspect_ratio: editAspect,
+      })
+    } catch {
+      // Revert local changes on remote failure
+      onUpdateLocal({
+        descripcion: prevDesc,
+        veo_prompt: prevPrompt,
+        duracion_seg: prevDuration,
+        aspect_ratio: prevAspect,
+      })
+      toast.error('Error al guardar cambios — se revirtieron las ediciones')
+    }
   }
 
   const handleCancelEdit = (e: React.MouseEvent) => {
@@ -1178,7 +1188,7 @@ function ReviewStage({
               {/* Thumbnail */}
               {scene.video_url ? (
                 <div className="w-16 h-10 rounded-lg overflow-hidden shrink-0 relative">
-                  <video src={scene.video_url} className="w-full h-full object-cover" muted preload="metadata" />
+                  <video src={getVideoSrc(scene.video_url)} className="w-full h-full object-cover" muted preload="metadata" />
                   {scene.aprobado && (
                     <div className="absolute inset-0 bg-green-500/10 flex items-center justify-center">
                       <Check className="h-4 w-4 text-green-400" />
@@ -1363,7 +1373,7 @@ function ExportStage({
                 key={scene.id}
                 onClick={() => {
                   const a = document.createElement('a')
-                  a.href = scene.video_url!
+                  a.href = getVideoSrc(scene.video_url) || ''
                   a.download = `escena-${scene.orden}.${exportFormat}`
                   a.click()
                 }}
@@ -1445,7 +1455,7 @@ function VideoPlayer({ scene }: { scene: PipelineScene }) {
     setIsPlaying(false)
     setCurrentTime(0)
     setDuration(0)
-  }, [scene.id])
+  }, [scene.id, scene.video_url])
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current
@@ -1476,7 +1486,7 @@ function VideoPlayer({ scene }: { scene: PipelineScene }) {
       <div className="relative aspect-video flex items-center justify-center cursor-pointer" onClick={togglePlay}>
         <video
           ref={videoRef}
-          src={scene.video_url!}
+          src={getVideoSrc(scene.video_url)}
           className="w-full h-full object-contain"
           preload="metadata"
           playsInline

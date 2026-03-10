@@ -1,24 +1,36 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { usePipelineStore } from '@/stores/pipelineStore'
+
+const MAX_RETRIES = 10
 
 export function usePipelineWebSocket(pipelineId: number | null) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>()
   const reconnectDelay = useRef(1000)
+  const retryCount = useRef(0)
+  const [connectionLost, setConnectionLost] = useState(false)
   const { updateSceneFromWS, setPipelineStatus, setExportProgress, setExportComplete } = usePipelineStore()
 
   useEffect(() => {
     if (!pipelineId) return
 
     function connect() {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        setConnectionLost(true)
+        return
+      }
+
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
       const wsUrl = apiUrl.replace(/^http/, 'ws')
-      const ws = new WebSocket(`${wsUrl}/api/v1/pipeline/ws/${pipelineId}`)
+      const ws = new WebSocket(`${wsUrl}/api/v1/pipeline/ws/${pipelineId}?token=${encodeURIComponent(token)}`)
       wsRef.current = ws
 
       ws.onopen = () => {
         reconnectDelay.current = 1000 // Reset on successful connect
+        retryCount.current = 0
+        setConnectionLost(false)
       }
 
       ws.onmessage = (event) => {
@@ -53,7 +65,7 @@ export function usePipelineWebSocket(pipelineId: number | null) {
           case 'export_failed':
             setExportProgress(null)
             usePipelineStore.setState({ isLoading: false })
-            toast.error(msg.error ?? 'Error durante la exportación al CRM')
+            toast.error(msg.error ?? 'Error durante la exportacion al CRM')
             break
         }
       }
@@ -63,8 +75,14 @@ export function usePipelineWebSocket(pipelineId: number | null) {
       }
 
       ws.onclose = () => {
-        // Auto-reconnect with exponential backoff
+        if (retryCount.current >= MAX_RETRIES) {
+          setConnectionLost(true)
+          return
+        }
+
+        // Auto-reconnect with exponential backoff, capped at 10 retries
         const delay = Math.min(reconnectDelay.current, 30000)
+        retryCount.current += 1
         reconnectTimer.current = setTimeout(() => {
           reconnectDelay.current = delay * 2
           connect()
@@ -83,4 +101,6 @@ export function usePipelineWebSocket(pipelineId: number | null) {
       }
     }
   }, [pipelineId, updateSceneFromWS, setPipelineStatus, setExportProgress, setExportComplete])
+
+  return { connectionLost }
 }
