@@ -409,6 +409,107 @@
       inset 1px 0 0 rgba(59, 130, 246, 0.1);
   }
 
+  /* Pipeline scene generating pulse */
+  .animate-generating-pulse {
+    animation: generatingPulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes generatingPulse {
+    0%, 100% {
+      border-color: rgba(124, 58, 237, 0.4);
+    }
+    50% {
+      border-color: rgba(124, 58, 237, 1);
+    }
+  }
+
+  /* Pipeline scene completion flash */
+  .animate-complete-flash {
+    animation: completeFlash 0.8s ease-out forwards;
+  }
+
+  @keyframes completeFlash {
+    0% {
+      border-color: rgba(34, 197, 94, 1);
+      box-shadow: 0 0 12px rgba(34, 197, 94, 0.4);
+    }
+    100% {
+      border-color: rgba(34, 197, 94, 0.5);
+      box-shadow: none;
+    }
+  }
+
+  /* WebSocket connected indicator pulse */
+  .animate-ws-pulse {
+    animation: wsPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes wsPulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+
+  /* Stage transition: fade in new stage content */
+  .animate-stage-enter {
+    animation: stageEnter 200ms ease-out;
+  }
+
+  @keyframes stageEnter {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* Approve scene: green badge scales in with spring easing */
+  .animate-approve-badge {
+    animation: approveBadge 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes approveBadge {
+    from {
+      transform: scale(0);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  /* Panel slide-in animations for responsive collapse */
+  .animate-slide-in-right {
+    animation: slideInRight 200ms ease-out;
+  }
+
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  .animate-slide-in-left {
+    animation: slideInLeft 200ms ease-out;
+  }
+
+  @keyframes slideInLeft {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
   /* Custom scrollbar */
   .scrollbar-thin {
     scrollbar-width: thin;

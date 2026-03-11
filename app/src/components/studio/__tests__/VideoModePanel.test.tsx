@@ -6,22 +6,18 @@ import { VideoModePanel } from '../VideoModePanel'
 // ── Hoisted mocks ────────────────────────────────────────────────────────────
 
 const {
-  mockProjectsList,
-  mockProjectsCreate,
-  mockClientsList,
   mockToast,
-  mockSetSelectedVideoProjectId,
-  mockAiState,
+  mockPipelineState,
   mockStudioState,
 } = vi.hoisted(() => ({
-  mockProjectsList: vi.fn(),
-  mockProjectsCreate: vi.fn(),
-  mockClientsList: vi.fn(),
   mockToast: { error: vi.fn(), success: vi.fn() },
-  mockSetSelectedVideoProjectId: vi.fn(),
-  mockAiState: {
-    selectedVideoProjectId: null as number | null,
-    setSelectedVideoProjectId: null as ReturnType<typeof vi.fn> | null,
+  mockPipelineState: {
+    pipelineVersions: [] as Array<{ id: number; estado: string; quality: string; brief_snapshot: string | null; total_escenas: number; escenas_completas: number; creado_en: string; actualizado_en: string }>,
+    selectedPipelineId: null as number | null,
+    isLoadingVersions: false,
+    loadPipelineVersions: vi.fn(),
+    selectPipeline: vi.fn(),
+    createNewPipeline: vi.fn(),
   },
   mockStudioState: {
     generations: [] as Array<{ id: number; estado: string; url_salida: string | null; prompt: string }>,
@@ -29,28 +25,16 @@ const {
 }))
 
 vi.mock('@/services/api', () => ({
-  projectsApi: {
-    list: (...args: unknown[]) => mockProjectsList(...args),
-    create: (...args: unknown[]) => mockProjectsCreate(...args),
-  },
   pipelineApi: {},
-  clientsApi: {
-    list: (...args: unknown[]) => mockClientsList(...args),
-  },
 }))
 
 vi.mock('sonner', () => ({
   toast: mockToast,
 }))
 
-vi.mock('@/stores/studioAiStore', () => ({
-  useStudioAiStore: (selector?: (s: Record<string, unknown>) => unknown) => {
-    const state = {
-      selectedVideoProjectId: mockAiState.selectedVideoProjectId,
-      setSelectedVideoProjectId: mockAiState.setSelectedVideoProjectId,
-    }
-    return selector ? selector(state) : state
-  },
+vi.mock('@/stores/pipelineStore', () => ({
+  usePipelineStore: (selector?: (s: typeof mockPipelineState) => unknown) =>
+    selector ? selector(mockPipelineState) : mockPipelineState,
 }))
 
 vi.mock('@/stores/studioStore', () => ({
@@ -64,188 +48,62 @@ vi.mock('@/lib/utils', () => ({
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const sampleProjects = {
-  elementos: [
-    { id: 1, nombre: 'Campaña Verano', tipo: 'servicios', cliente_nombre: 'Acme', status_operativo: 'activo' },
-    { id: 2, nombre: 'Lanzamiento Producto', tipo: 'experiencias', cliente_nombre: 'Beta Corp', status_operativo: 'activo' },
-  ],
-  total: 2,
-  pagina: 1,
-  por_pagina: 50,
-}
-
-const sampleClients = {
-  elementos: [
-    { id: 10, nombre: 'Acme Inc' },
-    { id: 20, nombre: 'Beta Corp' },
-  ],
-  total: 2,
-  pagina: 1,
-  por_pagina: 50,
-}
+const sampleVersions = [
+  { id: 1, estado: 'planned', quality: 'veo-3.1-fast', brief_snapshot: 'Campaña verano con playa', total_escenas: 5, escenas_completas: 2, creado_en: '2026-03-10T10:00:00Z', actualizado_en: '2026-03-10T12:00:00Z' },
+  { id: 2, estado: 'draft', quality: 'kling/v3', brief_snapshot: null, total_escenas: 0, escenas_completas: 0, creado_en: '2026-03-11T08:00:00Z', actualizado_en: '2026-03-11T08:00:00Z' },
+]
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('VideoModePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockAiState.selectedVideoProjectId = null
-    mockAiState.setSelectedVideoProjectId = mockSetSelectedVideoProjectId
+    mockPipelineState.pipelineVersions = []
+    mockPipelineState.selectedPipelineId = null
+    mockPipelineState.isLoadingVersions = false
     mockStudioState.generations = []
-    mockProjectsList.mockResolvedValue({ data: sampleProjects })
-    mockClientsList.mockResolvedValue({ data: sampleClients })
-    mockProjectsCreate.mockResolvedValue({
-      data: { id: 99, nombre: 'Nuevo Proyecto', tipo: 'servicios' },
-    })
   })
 
-  it('renders project list', async () => {
-    render(<VideoModePanel />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Campaña Verano')).toBeInTheDocument()
-    })
-    expect(screen.getByText('Lanzamiento Producto')).toBeInTheDocument()
+  it('renders "Versiones" header', () => {
+    render(<VideoModePanel projectId={1} />)
+    expect(screen.getByText('Versiones')).toBeInTheDocument()
   })
 
-  it('selects project on click', async () => {
+  it('renders pipeline versions list', () => {
+    mockPipelineState.pipelineVersions = sampleVersions
+    render(<VideoModePanel projectId={1} />)
+
+    expect(screen.getByText(/Campaña verano con playa/)).toBeInTheDocument()
+    expect(screen.getByText('v1')).toBeInTheDocument()
+  })
+
+  it('selects pipeline on click', async () => {
     const user = userEvent.setup()
-    render(<VideoModePanel />)
+    mockPipelineState.pipelineVersions = sampleVersions
+    render(<VideoModePanel projectId={1} />)
 
-    await waitFor(() => {
-      expect(screen.getByText('Campaña Verano')).toBeInTheDocument()
-    })
-
-    await user.click(screen.getByText('Campaña Verano'))
-    expect(mockSetSelectedVideoProjectId).toHaveBeenCalledWith(1)
+    await user.click(screen.getByText(/Campaña verano con playa/))
+    expect(mockPipelineState.selectPipeline).toHaveBeenCalledWith(1)
   })
 
-  it('create project form shows on button click', async () => {
+  it('calls createNewPipeline on "Nueva version" click', async () => {
     const user = userEvent.setup()
-    render(<VideoModePanel />)
+    render(<VideoModePanel projectId={1} />)
 
-    await waitFor(() => {
-      expect(screen.getByText('Crear Proyecto')).toBeInTheDocument()
-    })
-
-    await user.click(screen.getByText('Crear Proyecto'))
-
-    expect(screen.getByPlaceholderText('Nombre del proyecto')).toBeInTheDocument()
-    expect(screen.getByText('Nuevo proyecto')).toBeInTheDocument()
+    await user.click(screen.getByText('Nueva version'))
+    expect(mockPipelineState.createNewPipeline).toHaveBeenCalled()
   })
 
-  it('create project validation prevents empty submission', async () => {
-    const user = userEvent.setup()
-    render(<VideoModePanel />)
+  it('shows empty state when no versions', () => {
+    mockPipelineState.pipelineVersions = []
+    render(<VideoModePanel projectId={1} />)
 
-    await waitFor(() => {
-      expect(screen.getByText('Crear Proyecto')).toBeInTheDocument()
-    })
-
-    await user.click(screen.getByText('Crear Proyecto'))
-
-    // Wait for clients to load
-    await waitFor(() => {
-      expect(mockClientsList).toHaveBeenCalled()
-    })
-
-    // The submit button should be disabled when name is empty
-    const submitBtn = screen.getByRole('button', { name: /Crear$/i })
-    expect(submitBtn).toBeDisabled()
-
-    expect(mockProjectsCreate).not.toHaveBeenCalled()
+    expect(screen.getByText('Sin pipelines aun')).toBeInTheDocument()
   })
 
-  it('create project calls API and closes form on success', async () => {
-    const user = userEvent.setup()
-    render(<VideoModePanel />)
+  it('loads versions on mount', () => {
+    render(<VideoModePanel projectId={42} />)
 
-    await waitFor(() => {
-      expect(screen.getByText('Crear Proyecto')).toBeInTheDocument()
-    })
-
-    await user.click(screen.getByText('Crear Proyecto'))
-
-    await waitFor(() => {
-      expect(mockClientsList).toHaveBeenCalled()
-    })
-
-    const nameInput = screen.getByPlaceholderText('Nombre del proyecto')
-    await user.type(nameInput, 'Nuevo Proyecto')
-
-    const submitBtn = screen.getByRole('button', { name: /Crear$/i })
-    expect(submitBtn).not.toBeDisabled()
-
-    await user.click(submitBtn)
-
-    await waitFor(() => {
-      expect(mockProjectsCreate).toHaveBeenCalledWith({
-        cliente_id: 10,
-        nombre: 'Nuevo Proyecto',
-        tipo: 'servicios',
-      })
-    })
-
-    expect(mockToast.success).toHaveBeenCalledWith('Proyecto creado')
-    expect(mockSetSelectedVideoProjectId).toHaveBeenCalledWith(99)
-
-    // Form should close — "Crear Proyecto" button reappears
-    await waitFor(() => {
-      expect(screen.getByText('Crear Proyecto')).toBeInTheDocument()
-    })
-  })
-
-  it('create project error shows toast and keeps form open', async () => {
-    const user = userEvent.setup()
-    mockProjectsCreate.mockRejectedValue({
-      response: { data: { detail: 'Nombre duplicado' } },
-    })
-
-    render(<VideoModePanel />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Crear Proyecto')).toBeInTheDocument()
-    })
-
-    await user.click(screen.getByText('Crear Proyecto'))
-
-    await waitFor(() => {
-      expect(mockClientsList).toHaveBeenCalled()
-    })
-
-    const nameInput = screen.getByPlaceholderText('Nombre del proyecto')
-    await user.type(nameInput, 'Duplicado')
-
-    const submitBtn = screen.getByRole('button', { name: /Crear$/i })
-    await user.click(submitBtn)
-
-    await waitFor(() => {
-      expect(mockToast.error).toHaveBeenCalledWith('Nombre duplicado')
-    })
-
-    // Form should still be visible
-    expect(screen.getByText('Nuevo proyecto')).toBeInTheDocument()
-  })
-
-  it('loads projects on mount', async () => {
-    render(<VideoModePanel />)
-
-    await waitFor(() => {
-      expect(mockProjectsList).toHaveBeenCalledWith({ limit: 50 })
-    })
-  })
-
-  it('error state on load failure shows error toast', async () => {
-    mockProjectsList.mockRejectedValue(new Error('Network'))
-    render(<VideoModePanel />)
-
-    await waitFor(() => {
-      expect(mockToast.error).toHaveBeenCalledWith('Error al cargar proyectos')
-    })
-
-    // Empty state shown
-    await waitFor(() => {
-      expect(screen.getByText('Sin proyectos')).toBeInTheDocument()
-    })
+    expect(mockPipelineState.loadPipelineVersions).toHaveBeenCalledWith(42)
   })
 })

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
-import { pipelineApi, type Pipeline, type PipelineScene } from '@/services/api'
+import { pipelineApi, type Pipeline, type PipelineScene, type PipelineVersionItem } from '@/services/api'
 
 export type PipelineStatus =
   | 'draft' | 'analyzing' | 'planned' | 'generating'
@@ -33,8 +33,14 @@ interface PipelineStore {
   error: string | null
   exportProgress: { step: number; total: number } | null
   exportedMediaIds: number[]
+  pipelineVersions: PipelineVersionItem[]
+  selectedPipelineId: number | null
+  isLoadingVersions: boolean
 
   initPipeline: (projectId: number) => Promise<void>
+  loadPipelineVersions: (projectId: number) => Promise<void>
+  selectPipeline: (pipelineId: number) => Promise<void>
+  createNewPipeline: () => void
   startPipeline: (projectId: number, briefOverride?: string, referenceImageUrls?: string[]) => Promise<void>
   generateScenes: (sceneIds?: number[], quality?: string) => Promise<void>
   submitRevision: (sceneId: number, feedback: string) => Promise<void>
@@ -70,14 +76,45 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
   error: null,
   exportProgress: null,
   exportedMediaIds: [],
+  pipelineVersions: [],
+  selectedPipelineId: null,
+  isLoadingVersions: false,
 
   initPipeline: async (projectId) => {
     try {
       const { data } = await pipelineApi.getByProject(projectId)
-      set({ pipeline: data, currentStage: toUIStage(data.estado) })
+      set({ pipeline: data, currentStage: toUIStage(data.estado), selectedPipelineId: data.id })
+      // Also load versions list
+      get().loadPipelineVersions(projectId)
     } catch {
-      // No existing pipeline — stay idle
+      // No existing pipeline — stay idle, still load versions
+      get().loadPipelineVersions(projectId)
     }
+  },
+
+  loadPipelineVersions: async (projectId) => {
+    set({ isLoadingVersions: true })
+    try {
+      const { data } = await pipelineApi.listByProject(projectId)
+      set({ pipelineVersions: data, isLoadingVersions: false })
+    } catch {
+      set({ isLoadingVersions: false })
+    }
+  },
+
+  selectPipeline: async (pipelineId) => {
+    set({ isLoading: true, selectedPipelineId: pipelineId })
+    try {
+      const { data } = await pipelineApi.get(pipelineId)
+      set({ pipeline: data, currentStage: toUIStage(data.estado), isLoading: false })
+    } catch {
+      set({ isLoading: false })
+      toast.error('Error al cargar pipeline')
+    }
+  },
+
+  createNewPipeline: () => {
+    set({ pipeline: null, currentStage: 'idle', selectedPipelineId: null, activeSceneId: null })
   },
 
   startPipeline: async (projectId, briefOverride, referenceImageUrls) => {
@@ -92,8 +129,11 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
         pipeline: data,
         currentStage: toUIStage(data.estado),
         isLoading: false,
+        selectedPipelineId: data.id,
       })
       toast.success('Brief analizado — plan de escenas listo')
+      // Refresh versions list
+      get().loadPipelineVersions(projectId)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error al iniciar pipeline'
       set({ error: msg, isLoading: false, currentStage: 'idle' })
@@ -157,15 +197,8 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
 
   setStage: (stage) => set({ currentStage: stage }),
 
-  canGoToStage: (stage) => {
-    const { pipeline, currentStage } = get()
-    const targetIdx = stageOrder.indexOf(stage)
-    const currentIdx = stageOrder.indexOf(currentStage)
-    // Can always go back to completed steps
-    if (targetIdx <= currentIdx) return true
-    // Can't skip forward unless pipeline data supports it
-    if (!pipeline) return stage === 'idle'
-    return false
+  canGoToStage: () => {
+    return true
   },
 
   updateSceneFromWS: (sceneId, updates) => {
@@ -397,5 +430,8 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
       error: null,
       exportProgress: null,
       exportedMediaIds: [],
+      pipelineVersions: [],
+      selectedPipelineId: null,
+      isLoadingVersions: false,
     }),
 }))

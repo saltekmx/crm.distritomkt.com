@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Send, Loader2, Bot, User, ChevronDown } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { pipelineApi, type PipelineComment } from '@/services/api'
@@ -136,6 +137,9 @@ export function RevisionChat({ pipelineId, sceneId }: Props) {
         },
       ])
       setFeedback('')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al enviar revision'
+      toast.error(msg)
     } finally {
       setSending(false)
     }

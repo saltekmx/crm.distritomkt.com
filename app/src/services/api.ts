@@ -466,6 +466,7 @@ export interface PipelineScene {
   reference_asset_id: number | null
   video_url: string | null
   thumbnail_url: string | null
+  quality: string
   duracion_seg: number
   aspect_ratio: string
   aprobado: boolean
@@ -479,6 +480,7 @@ export interface Pipeline {
   proyecto_id: number
   estado: string
   brief_snapshot: string | null
+  quality: string
   guia_estilo: Record<string, unknown> | null
   escenas: PipelineScene[]
   creado_en: string
@@ -635,6 +637,17 @@ export interface PipelineListItem {
   actualizado_en: string
 }
 
+export interface PipelineVersionItem {
+  id: number
+  estado: string
+  quality: string
+  brief_snapshot: string | null
+  total_escenas: number
+  escenas_completas: number
+  creado_en: string
+  actualizado_en: string
+}
+
 export interface SceneReference {
   id: number
   url_archivo: string
@@ -648,6 +661,9 @@ export const pipelineApi = {
   // Pipeline lifecycle
   list: () =>
     api.get<PipelineListItem[]>('/pipeline/list'),
+
+  listByProject: (projectId: number) =>
+    api.get<PipelineVersionItem[]>(`/pipeline/by-project/${projectId}/versions`),
 
   getByProject: (projectId: number) =>
     api.get<Pipeline>(`/pipeline/by-project/${projectId}`),

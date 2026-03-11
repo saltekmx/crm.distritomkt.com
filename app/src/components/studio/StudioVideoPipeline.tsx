@@ -24,6 +24,12 @@ import {
   CheckCircle2,
   StopCircle,
   ImageIcon,
+  DollarSign,
+  PanelLeft,
+  PanelRight,
+  FileText,
+  Layout,
+  Eye,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePipelineStore, type UIStage } from '@/stores/pipelineStore'
@@ -31,6 +37,10 @@ import { useStudioStore } from '@/stores/studioStore'
 import { usePipelineWebSocket } from '@/hooks/usePipelineWebSocket'
 import { pipelineApi, getVideoSrc, type PipelineScene } from '@/services/api'
 import { MAX_SCENES, STATUS_CONFIG } from '@/constants/pipeline'
+import { RevisionChat } from '@/components/pipeline/RevisionChat'
+import { PromptHistoryViewer } from '@/components/pipeline/PromptHistoryViewer'
+import { PipelineLeftPanel } from '@/components/pipeline/PipelineLeftPanel'
+import { PipelineRightPanel } from '@/components/pipeline/PipelineRightPanel'
 import { useRef } from 'react'
 import { toast } from 'sonner'
 
@@ -49,18 +59,78 @@ const ASPECT_RATIO_OPTIONS = [
   { value: '4:5', label: '4:5' },
 ]
 
-const QUALITY_OPTIONS = [
-  { value: 'veo-3.1-fast', label: 'Veo 3.1 Fast' },
-  { value: 'veo-3.1', label: 'Veo 3.1 HQ' },
+const MODEL_OPTIONS = [
+  { value: 'veo-3.1-fast', label: 'Veo 3.1 Fast', hint: '~$0.05/s', group: 'Google Veo' },
+  { value: 'veo-3.1', label: 'Veo 3.1 HQ', hint: '~$0.10/s', group: 'Google Veo' },
+  { value: 'kling/v1.5', label: 'Kling v1.5', hint: '~$0.05/5s', group: 'Kling' },
+  { value: 'kling/v1.6', label: 'Kling v1.6', hint: '~$0.05/5s', group: 'Kling' },
+  { value: 'kling/v2.1-master', label: 'Kling v2.1 Master', hint: '~$0.26/5s', group: 'Kling' },
+  { value: 'kling/v2.5', label: 'Kling v2.5 Turbo', hint: '~$0.07/s', group: 'Kling' },
+  { value: 'kling/v2.6', label: 'Kling v2.6', hint: '~$0.10/5s', group: 'Kling' },
+  { value: 'kling/v3', label: 'Kling v3', hint: '~$0.15/5s', group: 'Kling' },
 ]
 
+// Cost per second lookup (approximate)
+const MODEL_COST_PER_SEC: Record<string, number> = {
+  'veo-3.1-fast': 0.05,
+  'veo-3.1': 0.10,
+  'kling/v1.5': 0.01,
+  'kling/v1.6': 0.01,
+  'kling/v2.1-master': 0.052,
+  'kling/v2.5': 0.07,
+  'kling/v2.6': 0.02,
+  'kling/v3': 0.03,
+}
+
 const STAGE_LABELS: Record<UIStage, string> = {
-  idle: 'Sin iniciar',
-  brief: 'Analizando',
-  planned: 'Planificado',
-  generating: 'Generando',
-  review: 'Revision',
+  idle: 'Brief',
+  brief: 'Brief',
+  planned: 'Escenas',
+  generating: 'Generar',
+  review: 'Revisar',
   export: 'Exportar',
+}
+
+// ── Responsive Hook ──────────────────────────────────────────────────────────
+
+function usePipelineResponsive() {
+  const [width, setWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1440,
+  )
+
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const handleResize = () => {
+      if (timeoutId) clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        setWidth(window.innerWidth)
+      }, 150)
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [])
+
+  return {
+    isRightCollapsed: width < 1280,
+    isLeftCollapsed: width < 1024,
+    isMobile: width < 768,
+  }
+}
+
+// ── Stage icon mapping for collapsed rails ──────────────────────────────────
+
+const STAGE_RAIL_ICONS: Record<UIStage, React.ComponentType<{ className?: string }>> = {
+  idle: FileText,
+  brief: FileText,
+  planned: Layout,
+  generating: Play,
+  review: Eye,
+  export: Download,
 }
 
 // ── Props ────────────────────────────────────────────────────────────────────
@@ -98,8 +168,29 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
   const [selectedImages, setSelectedImages] = useState<string[]>([])
   const [quality, setQuality] = useState('veo-3.1-fast')
   const [exportFormat, setExportFormat] = useState('mp4')
+  const [audioEnabled, setAudioEnabled] = useState(true)
+  const [seedValue, setSeedValue] = useState('')
+  const [seedLocked, setSeedLocked] = useState(false)
+  const [draftMode, setDraftMode] = useState(false)
+  const [defaultDuration, setDefaultDuration] = useState(6)
+  const [defaultAspectRatio, setDefaultAspectRatio] = useState('16:9')
+  const [exportDestination, setExportDestination] = useState<'library' | 'download' | 'shareable'>('library')
+  const [includeMetadataJson, setIncludeMetadataJson] = useState(true)
 
   const { reset: resetPipeline } = usePipelineStore()
+
+  // Responsive breakpoints
+  const { isRightCollapsed, isLeftCollapsed, isMobile } = usePipelineResponsive()
+  const [leftPanelOpen, setLeftPanelOpen] = useState(false)
+  const [rightPanelOpen, setRightPanelOpen] = useState(false)
+
+  // Close overlays when breakpoint changes back to non-collapsed
+  useEffect(() => {
+    if (!isRightCollapsed) setRightPanelOpen(false)
+  }, [isRightCollapsed])
+  useEffect(() => {
+    if (!isLeftCollapsed) setLeftPanelOpen(false)
+  }, [isLeftCollapsed])
 
   // Init pipeline on mount or project change
   useEffect(() => {
@@ -119,6 +210,13 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
       setBriefText(pipeline.brief_snapshot)
     }
   }, [pipeline?.brief_snapshot]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Restore quality/model from pipeline when it loads
+  useEffect(() => {
+    if (pipeline?.quality && pipeline.quality !== quality) {
+      setQuality(pipeline.quality)
+    }
+  }, [pipeline?.quality]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // WebSocket for live updates
   const { connectionLost } = usePipelineWebSocket(pipeline?.id ?? null)
@@ -181,7 +279,7 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
             </div>
             <h2 className="text-lg font-semibold text-zinc-300">Video Pipeline</h2>
             <p className="text-sm text-zinc-500 leading-relaxed">
-              Selecciona un proyecto del panel izquierdo para ver su pipeline de video, o inicia uno nuevo.
+              Crea tu primera version de video usando el boton "Nueva version" en el panel izquierdo.
             </p>
           </div>
         </div>
@@ -215,96 +313,421 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
         usePipelineStore.getState().setStage(stage)
       }} />
 
-      {/* Center content — changes per stage */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin relative z-10">
-        {currentStage === 'idle' && (
-          <IdleStage
-            briefText={briefText}
-            setBriefText={setBriefText}
-            isLoading={isLoading}
-            onAnalyze={handleStartPipeline}
-            selectedImages={selectedImages}
-            setSelectedImages={setSelectedImages}
-          />
+      {/* Top Control Bar — persistent config when pipeline exists */}
+      {pipeline && currentStage !== 'idle' && currentStage !== 'brief' && (
+        <div className="relative z-10 px-4 py-2 border-b border-zinc-800/40 bg-zinc-950/60 backdrop-blur-sm">
+          <div className="flex items-center gap-3 overflow-x-auto text-[11px]">
+            {/* Model Dropdown */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-zinc-600">Modelo</span>
+              <select
+                value={quality}
+                onChange={(e) => setQuality(e.target.value)}
+                className="rounded-md bg-zinc-800/60 border border-zinc-700/40 px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500/40 appearance-none pr-6 cursor-pointer"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
+              >
+                {Object.entries(
+                  MODEL_OPTIONS.reduce<Record<string, typeof MODEL_OPTIONS>>((groups, opt) => {
+                    ;(groups[opt.group] ??= []).push(opt)
+                    return groups
+                  }, {}),
+                ).map(([group, opts]) => (
+                  <optgroup key={group} label={group}>
+                    {opts.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label} — {opt.hint}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+
+            <span className="h-3 w-px bg-zinc-800 shrink-0" />
+
+            {/* Audio */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-zinc-600">Audio</span>
+              <div className="flex gap-0.5">
+                {[true, false].map((val) => (
+                  <button
+                    key={String(val)}
+                    onClick={() => setAudioEnabled(val)}
+                    className={cn(
+                      'px-2 py-1 rounded-md font-medium transition-all',
+                      audioEnabled === val
+                        ? 'bg-violet-500/15 text-violet-300'
+                        : 'text-zinc-500 hover:text-zinc-300',
+                    )}
+                  >
+                    {val ? 'On' : 'Off'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <span className="h-3 w-px bg-zinc-800 shrink-0" />
+
+            {/* Seed */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-zinc-600">Seed</span>
+              <input
+                type="text"
+                value={seedValue}
+                onChange={(e) => setSeedValue(e.target.value.replace(/\D/g, ''))}
+                placeholder="Auto"
+                className="w-16 rounded-md bg-zinc-800/60 border border-zinc-700/40 px-2 py-1 text-[11px] text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/40"
+              />
+              <button
+                onClick={() => setSeedLocked(!seedLocked)}
+                className={cn(
+                  'px-1.5 py-1 rounded-md transition-all',
+                  seedLocked ? 'bg-violet-500/15 text-violet-300' : 'text-zinc-600 hover:text-zinc-400',
+                )}
+                title={seedLocked ? 'Seed bloqueado' : 'Bloquear seed'}
+              >
+                {seedLocked ? '🔒' : '🔓'}
+              </button>
+            </div>
+
+            <div className="flex-1" />
+
+            {/* Cost estimate */}
+            <span className="text-zinc-600 shrink-0">
+              ~${((pipeline.escenas.reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0)) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))).toFixed(2)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* 3-zone horizontal layout: Left Panel | Center | Right Panel */}
+      <div className="flex-1 flex min-h-0 relative z-10">
+        {/* Left Panel — persistent scene strip, references, settings */}
+        {pipeline && currentStage !== 'idle' && !isMobile && (
+          isLeftCollapsed ? (
+            /* Collapsed left rail */
+            <div className="w-[40px] shrink-0 border-r border-zinc-800/40 bg-zinc-950 flex flex-col items-center py-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setLeftPanelOpen(true)}
+                className="p-2 rounded-lg text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
+                title="Abrir panel izquierdo"
+              >
+                <PanelLeft className="h-4 w-4" />
+              </button>
+              {/* Scene count indicator */}
+              <span className="text-[9px] font-medium text-zinc-600">{pipeline.escenas.length}</span>
+            </div>
+          ) : (
+            <PipelineLeftPanel
+              scenes={pipeline.escenas}
+              activeSceneId={activeSceneId}
+              onSelectScene={setActiveScene}
+              onAddScene={handleAddScene}
+              onDeleteScene={(id) => deleteScene(id)}
+              canAddScene={pipeline.escenas.length < MAX_SCENES}
+              referenceImages={selectedImages}
+              onRemoveReference={(url) => setSelectedImages(selectedImages.filter((u) => u !== url))}
+              onImportReferences={() => {/* TODO: open asset library modal */}}
+              quality={quality}
+              onQualityChange={setQuality}
+              duration={defaultDuration}
+              onDurationChange={setDefaultDuration}
+              aspectRatio={defaultAspectRatio}
+              onAspectRatioChange={setDefaultAspectRatio}
+              audioEnabled={audioEnabled}
+              onAudioToggle={setAudioEnabled}
+              draftMode={draftMode}
+              onDraftModeToggle={setDraftMode}
+              estimatedCost={pipeline.escenas.reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
+              costBreakdown={`${pipeline.escenas.length} escena${pipeline.escenas.length !== 1 ? 's' : ''} × ${defaultDuration}s × ${(MODEL_OPTIONS.find((m) => m.value === quality)?.label ?? quality)}`}
+            />
+          )
         )}
 
-        {currentStage === 'brief' && <BriefStage />}
+        {/* Center content — changes per stage */}
+        <div key={currentStage} className={cn('flex-1 overflow-y-auto scrollbar-thin animate-stage-enter', isMobile && 'pb-14')}>
+          {currentStage === 'idle' && (
+            <IdleStage
+              briefText={briefText}
+              setBriefText={setBriefText}
+              isLoading={isLoading}
+              onAnalyze={handleStartPipeline}
+              selectedImages={selectedImages}
+              setSelectedImages={setSelectedImages}
+            />
+          )}
 
-        {currentStage === 'planned' && pipeline && (
-          <PlannedStage
-            pipeline={pipeline}
-            activeSceneId={activeSceneId}
-            quality={quality}
-            setQuality={setQuality}
-            isLoading={isLoading}
-            onSetActiveScene={setActiveScene}
-            onUpdateScene={updateScene}
-            onUpdateSceneRemote={updateSceneRemote}
-            onDeleteScene={deleteScene}
-            onAddScene={handleAddScene}
-            onGenerateAll={handleGenerateAll}
-            onReanalyze={handleStartPipeline}
-            onDropReferenceOnScene={handleDropReferenceOnScene}
-          />
-        )}
+          {currentStage === 'brief' && <BriefStage />}
 
-        {currentStage === 'generating' && pipeline && (
-          <GeneratingStage
-            pipeline={pipeline}
-            activeSceneId={activeSceneId}
-            quality={quality}
-            onSetActiveScene={setActiveScene}
-            onRetry={(sceneId) => generateSingleScene(sceneId, quality)}
-            onCancel={handleCancel}
-          />
-        )}
+          {currentStage === 'planned' && pipeline && (
+            <PlannedStage
+              pipeline={pipeline}
+              activeSceneId={activeSceneId}
+              quality={quality}
+              setQuality={setQuality}
+              isLoading={isLoading}
+              onSetActiveScene={setActiveScene}
+              onUpdateScene={updateScene}
+              onUpdateSceneRemote={updateSceneRemote}
+              onDeleteScene={deleteScene}
+              onAddScene={handleAddScene}
+              onGenerateAll={handleGenerateAll}
+              onReanalyze={handleStartPipeline}
+              onDropReferenceOnScene={handleDropReferenceOnScene}
+            />
+          )}
 
-        {currentStage === 'review' && pipeline && (
-          <ReviewStage
-            pipeline={pipeline}
-            activeSceneId={activeSceneId}
-            onSetActiveScene={setActiveScene}
-            onApprove={approveScene}
-            onRetry={(sceneId) => generateSingleScene(sceneId, quality)}
-          />
-        )}
+          {currentStage === 'generating' && pipeline && (
+            <GeneratingStage
+              pipeline={pipeline}
+              activeSceneId={activeSceneId}
+              quality={quality}
+              onSetActiveScene={setActiveScene}
+              onRetry={(sceneId) => generateSingleScene(sceneId, quality)}
+              onCancel={handleCancel}
+            />
+          )}
 
-        {currentStage === 'export' && pipeline && (
-          <ExportStage
-            pipeline={pipeline}
-            exportFormat={exportFormat}
-            setExportFormat={setExportFormat}
-            isLoading={isLoading}
-            exportProgress={exportProgress}
-            exportedMediaIds={exportedMediaIds}
-            onExport={handleExport}
-            onNewPipeline={() => {
-              resetPipeline()
-              setBriefText('')
-              setSelectedImages([])
-            }}
-          />
+          {currentStage === 'review' && pipeline && (
+            <ReviewStage
+              pipeline={pipeline}
+              activeSceneId={activeSceneId}
+              quality={quality}
+              onSetActiveScene={setActiveScene}
+              onApprove={approveScene}
+              onRetry={(sceneId) => generateSingleScene(sceneId, quality)}
+            />
+          )}
+
+          {currentStage === 'export' && pipeline && (
+            <ExportStage
+              pipeline={pipeline}
+              exportFormat={exportFormat}
+              setExportFormat={setExportFormat}
+              isLoading={isLoading}
+              exportProgress={exportProgress}
+              exportedMediaIds={exportedMediaIds}
+              onExport={handleExport}
+              onNewPipeline={() => {
+                resetPipeline()
+                setBriefText('')
+                setSelectedImages([])
+              }}
+            />
+          )}
+        </div>
+
+        {/* Right Panel — stage-dependent contextual content */}
+        {pipeline && currentStage !== 'idle' && !isMobile && (
+          isRightCollapsed ? (
+            /* Collapsed right rail */
+            <div className="w-[40px] shrink-0 border-l border-zinc-800/40 bg-zinc-950/60 flex flex-col items-center py-3 gap-1">
+              <button
+                type="button"
+                onClick={() => setRightPanelOpen(true)}
+                className="p-2 rounded-lg text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
+                title="Abrir panel derecho"
+              >
+                <PanelRight className="h-4 w-4" />
+              </button>
+              {/* Stage-specific icon indicators — all clickable */}
+              <div className="flex flex-col items-center gap-1 mt-2">
+                {VISUAL_STEPS.map((step) => {
+                  const StageIcon = STAGE_RAIL_ICONS[step.stages[0]]
+                  const isActive = step.stages.includes(currentStage)
+                  const currentVisualIdx = VISUAL_STEPS.findIndex((s) => s.stages.includes(currentStage))
+                  const stepIdx = VISUAL_STEPS.indexOf(step)
+                  const isNotYetReached = stepIdx > currentVisualIdx
+                  return (
+                    <button
+                      key={step.label}
+                      type="button"
+                      onClick={() => {
+                        usePipelineStore.getState().setStage(step.stages[0])
+                        setRightPanelOpen(true)
+                      }}
+                      className={cn(
+                        'p-1.5 rounded-md transition-all cursor-pointer',
+                        isActive
+                          ? 'text-violet-400 bg-violet-500/10'
+                          : isNotYetReached
+                            ? 'text-zinc-600 hover:text-zinc-400 border border-dashed border-zinc-700/40'
+                            : 'text-zinc-600 hover:text-zinc-400',
+                      )}
+                      title={step.label}
+                    >
+                      <StageIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <PipelineRightPanel
+              stage={currentStage}
+              scenes={pipeline.escenas}
+              activeSceneId={activeSceneId}
+              styleGuide={pipeline.guia_estilo}
+              onReanalyze={handleStartPipeline}
+              costGenerated={pipeline.escenas.filter((s) => s.estado === 'complete' || s.estado === 'approved').reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
+              costPending={pipeline.escenas.filter((s) => s.estado === 'pending' || s.estado === 'generating').reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
+              onRetryFailed={() => {
+                pipeline.escenas.filter((s) => s.estado === 'failed').forEach((s) => generateSingleScene(s.id, quality))
+              }}
+              onCancelAll={handleCancel}
+              onApproveAll={async () => {
+                for (const s of pipeline.escenas.filter((s) => !s.aprobado && (s.estado === 'complete' || s.estado === 'approved'))) {
+                  await approveScene(s.id)
+                }
+              }}
+              onGoToExport={() => usePipelineStore.getState().setStage('export')}
+              exportDestination={exportDestination}
+              onExportDestinationChange={setExportDestination}
+              includeMetadataJson={includeMetadataJson}
+              onIncludeMetadataJsonChange={setIncludeMetadataJson}
+              totalCost={pipeline.escenas.reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
+            />
+          )
         )}
       </div>
+
+      {/* Overlay: Left panel (when collapsed and opened) */}
+      {pipeline && currentStage !== 'idle' && isLeftCollapsed && leftPanelOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/50"
+            onClick={() => setLeftPanelOpen(false)}
+          />
+          <div className="fixed inset-y-0 left-0 z-50 w-[260px] animate-slide-in-left">
+            <PipelineLeftPanel
+              scenes={pipeline.escenas}
+              activeSceneId={activeSceneId}
+              onSelectScene={(id) => { setActiveScene(id); if (isMobile) setLeftPanelOpen(false) }}
+              onAddScene={handleAddScene}
+              onDeleteScene={(id) => deleteScene(id)}
+              canAddScene={pipeline.escenas.length < MAX_SCENES}
+              referenceImages={selectedImages}
+              onRemoveReference={(url) => setSelectedImages(selectedImages.filter((u) => u !== url))}
+              onImportReferences={() => {/* TODO: open asset library modal */}}
+              quality={quality}
+              onQualityChange={setQuality}
+              duration={defaultDuration}
+              onDurationChange={setDefaultDuration}
+              aspectRatio={defaultAspectRatio}
+              onAspectRatioChange={setDefaultAspectRatio}
+              audioEnabled={audioEnabled}
+              onAudioToggle={setAudioEnabled}
+              draftMode={draftMode}
+              onDraftModeToggle={setDraftMode}
+              estimatedCost={pipeline.escenas.reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
+              costBreakdown={`${pipeline.escenas.length} escena${pipeline.escenas.length !== 1 ? 's' : ''} × ${defaultDuration}s × ${(MODEL_OPTIONS.find((m) => m.value === quality)?.label ?? quality)}`}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Overlay: Right panel (when collapsed and opened) */}
+      {pipeline && currentStage !== 'idle' && isRightCollapsed && rightPanelOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/50"
+            onClick={() => setRightPanelOpen(false)}
+          />
+          <div className="fixed inset-y-0 right-0 z-50 w-[320px] animate-slide-in-right">
+            <PipelineRightPanel
+              stage={currentStage}
+              scenes={pipeline.escenas}
+              activeSceneId={activeSceneId}
+              styleGuide={pipeline.guia_estilo}
+              onReanalyze={handleStartPipeline}
+              costGenerated={pipeline.escenas.filter((s) => s.estado === 'complete' || s.estado === 'approved').reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
+              costPending={pipeline.escenas.filter((s) => s.estado === 'pending' || s.estado === 'generating').reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
+              onRetryFailed={() => {
+                pipeline.escenas.filter((s) => s.estado === 'failed').forEach((s) => generateSingleScene(s.id, quality))
+              }}
+              onCancelAll={handleCancel}
+              onApproveAll={async () => {
+                for (const s of pipeline.escenas.filter((s) => !s.aprobado && (s.estado === 'complete' || s.estado === 'approved'))) {
+                  await approveScene(s.id)
+                }
+              }}
+              onGoToExport={() => usePipelineStore.getState().setStage('export')}
+              exportDestination={exportDestination}
+              onExportDestinationChange={setExportDestination}
+              includeMetadataJson={includeMetadataJson}
+              onIncludeMetadataJsonChange={setIncludeMetadataJson}
+              totalCost={pipeline.escenas.reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Mobile floating panel toggles */}
+      {pipeline && currentStage !== 'idle' && isMobile && (
+        <div className="fixed bottom-16 right-3 z-30 flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => setLeftPanelOpen(true)}
+            className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700/50 flex items-center justify-center text-zinc-400 hover:text-violet-400 hover:border-violet-500/30 transition-all shadow-lg"
+            title="Escenas"
+          >
+            <PanelLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setRightPanelOpen(true)}
+            className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700/50 flex items-center justify-center text-zinc-400 hover:text-violet-400 hover:border-violet-500/30 transition-all shadow-lg"
+            title={STAGE_LABELS[currentStage]}
+          >
+            <PanelRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Bottom status bar */}
+      {pipeline && (
+        <PipelineBottomBar
+          connectionLost={connectionLost}
+          pipeline={pipeline}
+          activeSceneId={activeSceneId}
+          isMobile={isMobile}
+        />
+      )}
     </div>
   )
 }
 
 // ── Pipeline Stepper ─────────────────────────────────────────────────────────
 
-const STAGES: UIStage[] = ['idle', 'brief', 'planned', 'generating', 'review', 'export']
+// Visual steps shown in stepper (5 steps matching spec)
+// idle + brief map to the "Brief" visual step
+const VISUAL_STEPS: { label: string; stages: UIStage[] }[] = [
+  { label: 'Brief', stages: ['idle', 'brief'] },
+  { label: 'Escenas', stages: ['planned'] },
+  { label: 'Generar', stages: ['generating'] },
+  { label: 'Revisar', stages: ['review'] },
+  { label: 'Exportar', stages: ['export'] },
+]
+
+const ALL_STAGES: UIStage[] = ['idle', 'brief', 'planned', 'generating', 'review', 'export']
 
 function PipelineStepper({ currentStage, onStageClick }: { currentStage: UIStage; onStageClick: (stage: UIStage) => void }) {
-  const currentIdx = STAGES.indexOf(currentStage)
+  // Find which visual step the current stage belongs to
+  const currentVisualIdx = VISUAL_STEPS.findIndex((step) => step.stages.includes(currentStage))
 
   return (
     <div className="relative z-10 px-6 py-3 border-b border-zinc-800/40 bg-zinc-950/80 backdrop-blur-sm">
       <div className="flex items-center justify-center gap-1">
-        {STAGES.map((stage, idx) => {
-          const isActive = idx === currentIdx
-          const isDone = idx < currentIdx
+        {VISUAL_STEPS.map((step, idx) => {
+          const isActive = idx === currentVisualIdx
+          const isDone = idx < currentVisualIdx
+          const isNotYetReached = !isActive && !isDone
+          // Navigate to the first stage of the step
+          const targetStage = step.stages[0]
+
           return (
-            <div key={stage} className="flex items-center">
+            <div key={step.label} className="flex items-center">
               {idx > 0 && (
                 <div className={cn(
                   'w-8 h-px mx-1',
@@ -313,23 +736,90 @@ function PipelineStepper({ currentStage, onStageClick }: { currentStage: UIStage
               )}
               <button
                 type="button"
-                onClick={() => {
-                  if (isDone || isActive) onStageClick(stage)
-                }}
-                disabled={!isDone && !isActive}
+                onClick={() => onStageClick(targetStage)}
                 className={cn(
-                  'px-2.5 py-1 rounded-full text-[10px] font-medium transition-all',
+                  'px-2.5 py-1 rounded-full text-[10px] font-medium transition-all cursor-pointer',
                   isActive && 'bg-violet-500/15 text-violet-300 border border-violet-500/30',
-                  isDone && 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700/60 hover:text-zinc-300 cursor-pointer',
-                  !isActive && !isDone && 'text-zinc-600 cursor-default',
+                  isDone && 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700/60 hover:text-zinc-300',
+                  isNotYetReached && 'border border-dashed border-zinc-700/40 hover:border-zinc-500/50 text-zinc-500',
                 )}
               >
-                {STAGE_LABELS[stage]}
+                {step.label}
               </button>
             </div>
           )
         })}
       </div>
+    </div>
+  )
+}
+
+// ── Pipeline Bottom Bar ──────────────────────────────────────────────────────
+
+function PipelineBottomBar({
+  connectionLost,
+  pipeline,
+  activeSceneId,
+  isMobile = false,
+}: {
+  connectionLost: boolean
+  pipeline: NonNullable<ReturnType<typeof usePipelineStore.getState>['pipeline']>
+  activeSceneId: number | null
+  isMobile?: boolean
+}) {
+  const scenes = pipeline.escenas
+  const activeScene = activeSceneId ? scenes.find((s) => s.id === activeSceneId) : null
+
+  // Estimated cost: ~$0.05 per second of video generated (rough estimate for Veo)
+  const completedOrGenerating = scenes.filter(
+    (s) => s.estado === 'complete' || s.estado === 'approved' || s.estado === 'generating'
+  )
+  const totalSeconds = completedOrGenerating.reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0)
+  const estimatedCost = (totalSeconds * 0.05).toFixed(2)
+
+  return (
+    <div className={cn(
+      'z-20 flex items-center gap-4 border-t border-zinc-800/40 bg-zinc-950/90 px-4 py-2 backdrop-blur-sm',
+      isMobile ? 'fixed bottom-0 left-0 right-0' : 'relative',
+    )}>
+      {/* WebSocket connection indicator */}
+      <div className="flex items-center gap-1.5" title={connectionLost ? 'Desconectado' : 'Conectado'}>
+        <span
+          className={cn(
+            'h-2 w-2 rounded-full',
+            connectionLost ? 'bg-zinc-500' : 'bg-green-500 animate-ws-pulse'
+          )}
+        />
+        <span className="text-[10px] text-zinc-500">
+          {connectionLost ? 'Desconectado' : 'En linea'}
+        </span>
+      </div>
+
+      <span className="h-3 w-px bg-zinc-800" />
+
+      {/* Pipeline cost display */}
+      <div className="flex items-center gap-1.5" title="Costo estimado del pipeline">
+        <DollarSign className="h-3 w-3 text-zinc-500" />
+        <span className="text-[10px] text-zinc-500">
+          ~${estimatedCost} USD
+        </span>
+      </div>
+
+      <span className="h-3 w-px bg-zinc-800" />
+
+      {/* Scene count */}
+      <span className="text-[10px] text-zinc-500">
+        {scenes.length} escena{scenes.length !== 1 ? 's' : ''}
+      </span>
+
+      <div className="flex-1" />
+
+      {/* Active scene indicator */}
+      {activeScene && (
+        <span className="text-[10px] font-medium text-violet-400">
+          Escena activa: S{activeScene.orden}
+        </span>
+      )}
     </div>
   )
 }
@@ -664,25 +1154,29 @@ function PlannedStage({
 
       {/* Bottom controls */}
       <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 border-t border-zinc-800/40">
-        {/* Quality selector */}
+        {/* Model selector */}
         <div className="flex items-center gap-2">
           <label className="text-[11px] text-zinc-500">Modelo:</label>
-          <div className="flex gap-1.5">
-            {QUALITY_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setQuality(opt.value)}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all border',
-                  quality === opt.value
-                    ? 'bg-violet-500/15 border-violet-500/30 text-violet-300'
-                    : 'bg-zinc-800/40 border-zinc-700/40 text-zinc-500 hover:text-zinc-300',
-                )}
-              >
-                {opt.label}
-              </button>
+          <select
+            value={quality}
+            onChange={(e) => setQuality(e.target.value)}
+            className="rounded-lg bg-zinc-800/40 border border-zinc-700/40 px-3 py-1.5 text-[11px] font-medium text-zinc-300 focus:outline-none focus:border-violet-500/40 cursor-pointer"
+          >
+            {Object.entries(
+              MODEL_OPTIONS.reduce<Record<string, typeof MODEL_OPTIONS>>((groups, opt) => {
+                ;(groups[opt.group] ??= []).push(opt)
+                return groups
+              }, {}),
+            ).map(([group, opts]) => (
+              <optgroup key={group} label={group}>
+                {opts.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </optgroup>
             ))}
-          </div>
+          </select>
         </div>
 
         <div className="flex-1" />
@@ -1042,10 +1536,13 @@ function GeneratingStage({
             key={scene.id}
             onClick={() => onSetActiveScene(scene.id)}
             className={cn(
-              'rounded-xl border p-3 cursor-pointer transition-all flex items-center gap-3',
+              'rounded-xl border-2 p-3 cursor-pointer transition-all flex items-center gap-3',
+              scene.estado === 'generating' && 'animate-generating-pulse',
               activeSceneId === scene.id
                 ? 'bg-violet-500/5 border-violet-500/30'
-                : 'bg-zinc-800/20 border-zinc-700/20 hover:border-zinc-600/50',
+                : scene.estado === 'generating'
+                  ? 'bg-zinc-800/20'
+                  : 'bg-zinc-800/20 border-zinc-700/20 hover:border-zinc-600/50',
             )}
           >
             {/* Status indicator */}
@@ -1109,146 +1606,252 @@ function GeneratingStage({
 }
 
 // ── Review Stage ─────────────────────────────────────────────────────────────
+// Spec layout: Left panel = video player + prompt + metadata
+//              Right panel = revision agent chat
 
 function ReviewStage({
   pipeline,
   activeSceneId,
+  quality,
   onSetActiveScene,
   onApprove,
   onRetry,
 }: {
   pipeline: NonNullable<ReturnType<typeof usePipelineStore.getState>['pipeline']>
   activeSceneId: number | null
+  quality: string
   onSetActiveScene: (id: number) => void
   onApprove: (sceneId: number) => Promise<void>
   onRetry: (sceneId: number) => void
 }) {
+  const [editingPrompt, setEditingPrompt] = useState(false)
+  const [promptText, setPromptText] = useState('')
+  const [savingPrompt, setSavingPrompt] = useState(false)
+  const [showPromptHistory, setShowPromptHistory] = useState(false)
+  const { updateSceneRemote, updateScene: updateSceneLocally, generateSingleScene } = usePipelineStore()
+
   const scenes = pipeline.escenas
   const approved = scenes.filter((s) => s.aprobado).length
   const allApproved = approved === scenes.length && scenes.length > 0
-  const activeScene = scenes.find((s) => s.id === activeSceneId) ?? null
+  const activeScene = scenes.find((s) => s.id === activeSceneId)
+    ?? scenes.find((s) => s.estado === 'complete' || s.estado === 'approved')
+    ?? null
+
+  const handleStartEdit = () => {
+    setPromptText(activeScene?.veo_prompt ?? '')
+    setEditingPrompt(true)
+  }
+
+  const handleSavePrompt = async () => {
+    if (!activeScene) return
+    setSavingPrompt(true)
+    try {
+      await updateSceneRemote(activeScene.id, { veo_prompt: promptText })
+      updateSceneLocally(activeScene.id, { veo_prompt: promptText })
+      toast.success('Prompt actualizado')
+      setEditingPrompt(false)
+    } finally {
+      setSavingPrompt(false)
+    }
+  }
+
+  const handleSaveAndRegenerate = async () => {
+    if (!activeScene) return
+    setSavingPrompt(true)
+    try {
+      await updateSceneRemote(activeScene.id, { veo_prompt: promptText })
+      updateSceneLocally(activeScene.id, { veo_prompt: promptText, estado: 'generating' as const })
+      await generateSingleScene(activeScene.id)
+      toast.success('Prompt actualizado — regenerando video')
+      setEditingPrompt(false)
+    } finally {
+      setSavingPrompt(false)
+    }
+  }
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
-      {/* Approval progress */}
-      <div className="rounded-xl bg-zinc-800/30 border border-zinc-700/30 p-4 flex items-center justify-between">
-        <span className="text-sm text-zinc-300">
-          {approved} de {scenes.length} escenas aprobadas
-        </span>
-        {allApproved && (
-          <span className="text-xs font-medium text-green-400 flex items-center gap-1">
-            <Check className="h-3.5 w-3.5" />
-            Listo para exportar
+    <div className="px-6 py-6 space-y-5 h-full">
+      {/* Scene tabs + approval progress */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex gap-1.5 overflow-x-auto">
+          {scenes.map((scene) => (
+            <button
+              key={scene.id}
+              onClick={() => { onSetActiveScene(scene.id); setEditingPrompt(false) }}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0',
+                scene.id === activeScene?.id
+                  ? 'bg-violet-500/15 text-violet-300 border border-violet-500/30'
+                  : scene.aprobado
+                    ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                    : 'bg-zinc-800/40 text-zinc-500 border border-zinc-700/30 hover:text-zinc-300',
+              )}
+            >
+              {scene.aprobado && <Check className="h-3 w-3" />}
+              S{scene.orden}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-zinc-500">
+            {approved}/{scenes.length} aprobadas
           </span>
-        )}
+          {allApproved && (
+            <span className="flex items-center gap-1 text-xs font-medium text-green-400">
+              <Check className="h-3 w-3" />
+              Listo
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Active scene video player */}
-      {activeScene && activeScene.video_url && (activeScene.estado === 'complete' || activeScene.estado === 'approved') && (
-        <div className="space-y-3">
-          <VideoPlayer scene={activeScene} />
-          {/* Approve/reject buttons */}
-          {activeScene.estado === 'complete' && !activeScene.aprobado && (
-            <div className="flex justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => onApprove(activeScene.id)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-medium transition-colors"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                Aprobar Escena {activeScene.orden}
-              </button>
-              <button
-                type="button"
-                onClick={() => onRetry(activeScene.id)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-sm font-medium transition-colors border border-zinc-700"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Regenerar
-              </button>
+      {/* Split panel: Video+Prompt left, Revision chat right */}
+      {activeScene ? (
+        <div className="grid gap-5 lg:grid-cols-[1fr,380px]">
+          {/* LEFT — Video Player + Prompt + Metadata */}
+          <div className="space-y-4 min-w-0">
+            {/* Video player */}
+            {activeScene.video_url && (activeScene.estado === 'complete' || activeScene.estado === 'approved') ? (
+              <VideoPlayer scene={activeScene} />
+            ) : (
+              <div className="aspect-video rounded-xl bg-zinc-800/30 border border-zinc-700/30 flex items-center justify-center">
+                <p className="text-sm text-zinc-600">Video no disponible</p>
+              </div>
+            )}
+
+            {/* Prompt section */}
+            <div className="rounded-xl bg-zinc-800/30 border border-zinc-700/30 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                  Prompt Activo
+                </span>
+                <div className="flex items-center gap-2">
+                  {!activeScene.aprobado && !editingPrompt && (
+                    <button
+                      type="button"
+                      onClick={handleStartEdit}
+                      className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Editar
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowPromptHistory(!showPromptHistory)}
+                    className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                  >
+                    <Clock className="h-3 w-3" />
+                    Historial
+                  </button>
+                </div>
+              </div>
+
+              {editingPrompt ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={promptText}
+                    onChange={(e) => setPromptText(e.target.value)}
+                    rows={4}
+                    className="w-full resize-none rounded-lg bg-zinc-900/60 border border-violet-500/30 px-3 py-2 font-mono text-xs text-zinc-200 leading-relaxed focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={handleSavePrompt} disabled={savingPrompt || promptText === activeScene.veo_prompt} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                      <Check className="h-3 w-3" />
+                      Guardar
+                    </button>
+                    <button onClick={handleSaveAndRegenerate} disabled={savingPrompt || !promptText.trim()} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 border border-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                      <RefreshCw className="h-3 w-3" />
+                      Guardar y Regenerar
+                    </button>
+                    <button onClick={() => setEditingPrompt(false)} disabled={savingPrompt} className="px-3 py-1.5 rounded-lg text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="rounded-lg bg-zinc-900/40 p-3 font-mono text-xs leading-relaxed text-zinc-400 border border-zinc-800/50">
+                  {activeScene.veo_prompt || 'Sin prompt'}
+                </p>
+              )}
+
+              {showPromptHistory && activeScene && (
+                <PromptHistoryViewer scene={activeScene} />
+              )}
             </div>
-          )}
+
+            {/* Metadata row */}
+            <div className="flex items-center gap-4 text-[11px] text-zinc-500">
+              <span>Modelo: <span className="text-zinc-400">{MODEL_OPTIONS.find((m) => m.value === quality)?.label ?? quality}</span></span>
+              <span className="h-3 w-px bg-zinc-800" />
+              <span>Duracion: <span className="text-zinc-400">{activeScene.duracion_seg}s</span></span>
+              <span className="h-3 w-px bg-zinc-800" />
+              <span>Ratio: <span className="text-zinc-400">{activeScene.aspect_ratio}</span></span>
+              <span className="h-3 w-px bg-zinc-800" />
+              <span className={cn(
+                (STATUS_CONFIG[activeScene.estado] ?? STATUS_CONFIG.pending).color,
+              )}>
+                {(STATUS_CONFIG[activeScene.estado] ?? STATUS_CONFIG.pending).label}
+              </span>
+            </div>
+
+            {/* Approve/Reject/Regenerate */}
+            {!activeScene.aprobado && (activeScene.estado === 'complete' || activeScene.estado === 'approved') && (
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => onApprove(activeScene.id)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-medium transition-colors"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Aprobar Escena
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRetry(activeScene.id)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-sm font-medium transition-colors border border-zinc-700"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Regenerar
+                </button>
+              </div>
+            )}
+
+            {activeScene.aprobado && (
+              <div className="rounded-lg bg-green-500/10 py-2 text-center text-xs text-green-400 font-medium animate-approve-badge">
+                Escena aprobada
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT — Revision Agent Chat */}
+          <div className="rounded-xl bg-zinc-800/20 border border-zinc-700/30 p-4 flex flex-col min-h-[400px] lg:min-h-0">
+            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-zinc-800/50">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                Agente de Revision
+              </span>
+              <span className="text-[10px] text-zinc-600">— Escena {activeScene.orden}</span>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              {!activeScene.aprobado ? (
+                <RevisionChat pipelineId={pipeline.id} sceneId={activeScene.id} />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-xs text-zinc-600">Escena aprobada — no se permiten revisiones</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center py-20">
+          <p className="text-sm text-zinc-600">No hay escenas listas para revision</p>
         </div>
       )}
 
-      {/* Scene list */}
-      <div className="grid gap-3 md:grid-cols-2">
-        {scenes.map((scene) => (
-          <div
-            key={scene.id}
-            onClick={() => onSetActiveScene(scene.id)}
-            className={cn(
-              'group rounded-xl border p-3 cursor-pointer transition-all',
-              activeSceneId === scene.id
-                ? 'bg-violet-500/5 border-violet-500/30'
-                : 'bg-zinc-800/20 border-zinc-700/20 hover:border-zinc-600/50',
-            )}
-          >
-            <div className="flex items-center gap-3">
-              {/* Thumbnail */}
-              {scene.video_url ? (
-                <div className="w-16 h-10 rounded-lg overflow-hidden shrink-0 relative">
-                  <video src={getVideoSrc(scene.video_url)} className="w-full h-full object-cover" muted preload="metadata" />
-                  {scene.aprobado && (
-                    <div className="absolute inset-0 bg-green-500/10 flex items-center justify-center">
-                      <Check className="h-4 w-4 text-green-400" />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="w-16 h-10 rounded-lg bg-zinc-800/60 flex items-center justify-center shrink-0">
-                  <Video className="h-4 w-4 text-zinc-600" />
-                </div>
-              )}
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-zinc-300">Escena {scene.orden}</span>
-                  <span className={cn('text-[10px]', (STATUS_CONFIG[scene.estado] ?? STATUS_CONFIG.pending).color)}>
-                    {(STATUS_CONFIG[scene.estado] ?? STATUS_CONFIG.pending).label}
-                  </span>
-                  {scene.aprobado && (
-                    <span className="text-[10px] text-green-400 flex items-center gap-0.5">
-                      <Check className="h-2.5 w-2.5" /> Aprobado
-                    </span>
-                  )}
-                </div>
-                {scene.descripcion && (
-                  <p className="text-[10px] text-zinc-500 line-clamp-1 mt-0.5">{scene.descripcion}</p>
-                )}
-              </div>
-
-              {/* Quick actions */}
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                {scene.estado === 'complete' && !scene.aprobado && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onApprove(scene.id) }}
-                    className="p-1.5 rounded text-green-400 hover:bg-green-500/10"
-                    title="Aprobar"
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                {scene.estado === 'failed' && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onRetry(scene.id) }}
-                    className="p-1.5 rounded text-amber-400 hover:bg-amber-500/10"
-                    title="Reintentar"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
       {/* Go to export */}
       {allApproved && (
-        <div className="flex justify-center">
+        <div className="flex justify-center pt-2">
           <button
             type="button"
             onClick={() => usePipelineStore.getState().setStage('export')}
@@ -1284,10 +1887,15 @@ function ExportStage({
   onExport: () => void
   onNewPipeline: () => void
 }) {
+  const [audioOption, setAudioOption] = useState<'con' | 'sin'>('con')
   const approved = pipeline.escenas.filter((s) => s.aprobado)
   const totalDuration = approved.reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0)
   const isExported = pipeline.estado === 'exported'
   const isExporting = isLoading && pipeline.estado === 'exporting'
+
+  // Generate naming convention preview
+  const projectName = pipeline.brief_snapshot?.split(/[,.\n]/)[0]?.trim().replace(/\s+/g, '_').substring(0, 30) || 'Proyecto'
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-12 space-y-6">
@@ -1296,7 +1904,7 @@ function ExportStage({
         <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
           Resumen del Pipeline
         </p>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <div className="text-center">
             <p className="text-2xl font-bold text-zinc-200">{approved.length}</p>
             <p className="text-[11px] text-zinc-500">Escenas</p>
@@ -1309,30 +1917,98 @@ function ExportStage({
             <p className="text-2xl font-bold text-zinc-200">{exportFormat.toUpperCase()}</p>
             <p className="text-[11px] text-zinc-500">Formato</p>
           </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-zinc-200">{audioOption === 'con' ? 'Si' : 'No'}</p>
+            <p className="text-[11px] text-zinc-500">Audio</p>
+          </div>
         </div>
       </div>
 
-      {/* Format selector */}
+      {/* Approved scenes preview strip */}
+      {approved.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {approved.map((scene) => (
+            <div key={scene.id} className="relative shrink-0 w-24 h-14 rounded-lg overflow-hidden border border-zinc-700/30">
+              {scene.video_url ? (
+                <video src={getVideoSrc(scene.video_url)} className="w-full h-full object-cover" muted preload="metadata" />
+              ) : (
+                <div className="w-full h-full bg-zinc-800/60 flex items-center justify-center">
+                  <Video className="h-4 w-4 text-zinc-600" />
+                </div>
+              )}
+              <div className="absolute bottom-0.5 left-0.5 rounded bg-black/70 px-1 text-[9px] text-zinc-300 font-medium">
+                S{scene.orden} · {scene.duracion_seg}s
+              </div>
+              <div className="absolute top-0.5 right-0.5 rounded-full bg-green-500 p-0.5">
+                <Check className="h-2 w-2 text-white" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Export options */}
       {!isExported && (
-        <div>
-          <label className="text-xs font-medium text-zinc-400 mb-2 block">Formato de exportacion</label>
-          <div className="flex gap-2">
-            {['mp4', 'webm'].map((fmt) => (
-              <button
-                key={fmt}
-                onClick={() => setExportFormat(fmt)}
-                disabled={isExporting}
-                className={cn(
-                  'flex-1 px-3 py-2 rounded-xl text-sm font-medium transition-all border',
-                  exportFormat === fmt
-                    ? 'bg-violet-500/15 border-violet-500/30 text-violet-300'
-                    : 'bg-zinc-800/40 border-zinc-700/40 text-zinc-500 hover:text-zinc-300',
-                  isExporting && 'opacity-50 cursor-not-allowed',
-                )}
-              >
-                {fmt.toUpperCase()}
-              </button>
-            ))}
+        <div className="rounded-xl bg-zinc-800/30 border border-zinc-700/30 p-5 space-y-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            Opciones de Exportacion
+          </p>
+
+          {/* Format */}
+          <div>
+            <label className="text-[11px] font-medium text-zinc-400 mb-2 block">Formato</label>
+            <div className="flex gap-2">
+              {['mp4', 'webm'].map((fmt) => (
+                <button
+                  key={fmt}
+                  onClick={() => setExportFormat(fmt)}
+                  disabled={isExporting}
+                  className={cn(
+                    'flex-1 px-3 py-2 rounded-xl text-sm font-medium transition-all border',
+                    exportFormat === fmt
+                      ? 'bg-violet-500/15 border-violet-500/30 text-violet-300'
+                      : 'bg-zinc-800/40 border-zinc-700/40 text-zinc-500 hover:text-zinc-300',
+                    isExporting && 'opacity-50 cursor-not-allowed',
+                  )}
+                >
+                  {fmt.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Audio */}
+          <div>
+            <label className="text-[11px] font-medium text-zinc-400 mb-2 block">Audio</label>
+            <div className="flex gap-2">
+              {([['con', 'Con audio'], ['sin', 'Sin audio']] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => setAudioOption(value)}
+                  disabled={isExporting}
+                  className={cn(
+                    'flex-1 px-3 py-2 rounded-xl text-sm font-medium transition-all border',
+                    audioOption === value
+                      ? 'bg-violet-500/15 border-violet-500/30 text-violet-300'
+                      : 'bg-zinc-800/40 border-zinc-700/40 text-zinc-500 hover:text-zinc-300',
+                    isExporting && 'opacity-50 cursor-not-allowed',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Naming convention */}
+          <div>
+            <label className="text-[11px] font-medium text-zinc-400 mb-2 block">Nomenclatura</label>
+            <div className="rounded-lg bg-zinc-900/60 border border-zinc-800/50 px-3 py-2 font-mono text-xs text-violet-300/70">
+              {projectName}_{dateStr}_S1.{exportFormat}
+            </div>
+            <p className="mt-1 text-[10px] text-zinc-600">
+              Cada escena se exportara con este formato de nombre
+            </p>
           </div>
         </div>
       )}

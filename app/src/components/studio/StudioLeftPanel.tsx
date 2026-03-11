@@ -19,12 +19,12 @@ interface StudioLeftPanelProps {
 export function StudioLeftPanel({ projectId }: StudioLeftPanelProps) {
   const { leftTab, setLeftTab, studioMode } = useStudioAiStore()
 
-  // Video mode: single panel with projects + gallery, no tab rail
+  // Video mode: single panel with pipeline versions + gallery, no tab rail
   if (studioMode === 'video') {
     return (
       <div className="h-full flex shrink-0">
         <div className="h-full w-[300px] bg-zinc-900 border-r border-zinc-800 flex flex-col">
-          <VideoModePanel />
+          <VideoModePanel projectId={projectId} />
         </div>
       </div>
     )

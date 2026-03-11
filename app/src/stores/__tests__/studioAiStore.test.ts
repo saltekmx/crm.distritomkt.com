@@ -158,11 +158,6 @@ describe('studioAiStore', () => {
     expect(useStudioAiStore.getState().activeConversationId).toBe(5)
   })
 
-  it('setSelectedVideoProjectId should update video project', () => {
-    useStudioAiStore.getState().setSelectedVideoProjectId(7)
-    expect(useStudioAiStore.getState().selectedVideoProjectId).toBe(7)
-  })
-
   // ── addHubMessage / clearHubMessages ─────────────────────────────────────
 
   it('addHubMessage should append a message', () => {

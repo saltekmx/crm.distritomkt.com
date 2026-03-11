@@ -15,6 +15,7 @@ import {
   Wand2,
   Video,
   Hammer,
+  Upload,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -22,6 +23,7 @@ import { useStudioAiStore, type StudioAiMessage } from '@/stores/studioAiStore'
 import { useStudioStore } from '@/stores/studioStore'
 import { usePipelineStore } from '@/stores/pipelineStore'
 import type { StudioGeneration } from '@/services/api'
+import { aiApi } from '@/services/api'
 import { PromptHistory } from '../PromptHistory'
 import { SaveTemplateForm, LoadTemplates } from '../PromptTemplates'
 
@@ -75,9 +77,11 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
   const [pbEstilo, setPbEstilo] = useState('')
   const [pbIluminacion, setPbIluminacion] = useState('')
   const [pbCamara, setPbCamara] = useState('')
+  const [isUploadingRef, setIsUploadingRef] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   useEffect(() => {
@@ -102,6 +106,21 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
       }
     }
   }, [pendingPrompt, consumePendingPrompt])
+
+  // Auto-assemble prompt from builder fields (Task 4)
+  useEffect(() => {
+    if (!showPromptBuilder) return
+    const parts: string[] = []
+    if (pbSujeto.trim()) parts.push(pbSujeto.trim())
+    if (pbAccion.trim()) parts.push(pbAccion.trim())
+    if (pbAmbiente.trim()) parts.push(pbAmbiente.trim())
+    if (pbEstilo.trim()) parts.push(`estilo: ${pbEstilo.trim()}`)
+    if (pbIluminacion) parts.push(`iluminacion: ${pbIluminacion}`)
+    if (pbCamara) parts.push(`angulo de camara: ${pbCamara}`)
+    if (parts.length > 0) {
+      setInput(parts.join(', '))
+    }
+  }, [showPromptBuilder, pbSujeto, pbAccion, pbAmbiente, pbEstilo, pbIluminacion, pbCamara])
 
   const handleSend = async () => {
     if (!input.trim()) return
@@ -170,6 +189,30 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
     setReferenceImageUrl(activeImage.url_salida)
     setShowRefImage(true)
     toast.success('Imagen de referencia establecida')
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('Solo se permiten archivos de imagen')
+      return
+    }
+    setIsUploadingRef(true)
+    try {
+      const { data } = await aiApi.uploadFiles([file])
+      if (data.length > 0) {
+        setReferenceImageUrl(data[0].url)
+        setShowRefImage(true)
+        toast.success('Imagen de referencia subida')
+      }
+    } catch {
+      toast.error('Error al subir imagen')
+    } finally {
+      setIsUploadingRef(false)
+      // Reset input so re-selecting the same file triggers onChange
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
   }
 
   const handleHistorySelect = (prompt: string) => {
@@ -281,14 +324,35 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
               </button>
             </div>
           ) : (
-            <button
-              onClick={handleUseCurrentImage}
-              disabled={!activeImage?.url_salida}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs border border-dashed border-zinc-700 text-zinc-500 hover:border-violet-500/40 hover:text-zinc-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <ImageIcon className="h-3.5 w-3.5" />
-              Usar imagen actual
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleUseCurrentImage}
+                disabled={!activeImage?.url_salida}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs border border-dashed border-zinc-700 text-zinc-500 hover:border-violet-500/40 hover:text-zinc-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ImageIcon className="h-3.5 w-3.5" />
+                Usar imagen actual
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingRef}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs border border-dashed border-zinc-700 text-zinc-500 hover:border-violet-500/40 hover:text-zinc-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isUploadingRef ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Upload className="h-3.5 w-3.5" />
+                )}
+                Subir
+              </button>
+            </div>
           )}
         </div>
       )}

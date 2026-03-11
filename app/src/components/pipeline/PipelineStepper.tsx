@@ -1,38 +1,41 @@
 import { Upload, FileText, Layout, Play, Eye, Download, Check } from 'lucide-react'
 import { usePipelineStore, type UIStage } from '@/stores/pipelineStore'
 
-const steps: { key: UIStage; label: string; icon: React.ElementType }[] = [
-  { key: 'idle', label: 'Assets', icon: Upload },
-  { key: 'brief', label: 'Brief', icon: FileText },
-  { key: 'planned', label: 'Plan', icon: Layout },
-  { key: 'generating', label: 'Generar', icon: Play },
-  { key: 'review', label: 'Revisión', icon: Eye },
-  { key: 'export', label: 'Exportar', icon: Download },
+// 5 visual steps matching spec: Brief → Escenas → Generar → Revisar → Exportar
+// idle + brief map to "Brief" visual step
+const visualSteps: { label: string; icon: React.ElementType; stages: UIStage[] }[] = [
+  { label: 'Brief', icon: FileText, stages: ['idle', 'brief'] },
+  { label: 'Escenas', icon: Layout, stages: ['planned'] },
+  { label: 'Generar', icon: Play, stages: ['generating'] },
+  { label: 'Revisar', icon: Eye, stages: ['review'] },
+  { label: 'Exportar', icon: Download, stages: ['export'] },
 ]
 
-const stageOrder: UIStage[] = ['idle', 'brief', 'planned', 'generating', 'review', 'export']
+const allStages: UIStage[] = ['idle', 'brief', 'planned', 'generating', 'review', 'export']
 
 interface Props {
   currentStage: UIStage
 }
 
 export function PipelineStepper({ currentStage }: Props) {
-  const currentIdx = stageOrder.indexOf(currentStage)
   const { setStage, canGoToStage } = usePipelineStore()
+
+  const currentVisualIdx = visualSteps.findIndex((step) => step.stages.includes(currentStage))
 
   return (
     <div className="flex items-center gap-1 overflow-x-auto py-4">
-      {steps.map((step, idx) => {
-        const isComplete = idx < currentIdx
-        const isCurrent = idx === currentIdx
-        const canClick = canGoToStage(step.key) && !isCurrent
+      {visualSteps.map((step, idx) => {
+        const isComplete = idx < currentVisualIdx
+        const isCurrent = idx === currentVisualIdx
+        const targetStage = step.stages[0]
+        const canClick = canGoToStage(targetStage) && !isCurrent
         const Icon = step.icon
 
         return (
-          <div key={step.key} className="flex items-center">
+          <div key={step.label} className="flex items-center">
             <button
               type="button"
-              onClick={() => canClick && setStage(step.key)}
+              onClick={() => canClick && setStage(targetStage)}
               disabled={!canClick}
               className={`flex flex-col items-center gap-1 ${canClick ? 'cursor-pointer' : 'cursor-default'}`}
             >
@@ -55,10 +58,10 @@ export function PipelineStepper({ currentStage }: Props) {
                 {step.label}
               </span>
             </button>
-            {idx < steps.length - 1 && (
+            {idx < visualSteps.length - 1 && (
               <div
                 className={`mx-2 h-0.5 w-8 ${
-                  idx < currentIdx ? 'bg-primary' : 'bg-border'
+                  idx < currentVisualIdx ? 'bg-primary' : 'bg-border'
                 }`}
               />
             )}

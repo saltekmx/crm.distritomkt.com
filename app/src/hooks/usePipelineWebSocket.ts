@@ -36,16 +36,26 @@ export function usePipelineWebSocket(pipelineId: number | null) {
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data)
         switch (msg.type) {
-          case 'scene_complete':
+          case 'scene_complete': {
             updateSceneFromWS(msg.scene_id, {
               estado: 'complete',
               video_url: msg.video_url,
               thumbnail_url: msg.thumbnail_url,
             })
+            const sceneOrder = usePipelineStore.getState().pipeline?.escenas.find(
+              (s) => s.id === msg.scene_id
+            )?.orden
+            toast.success(`Escena ${sceneOrder ?? ''} completada`)
             break
-          case 'scene_failed':
+          }
+          case 'scene_failed': {
             updateSceneFromWS(msg.scene_id, { estado: 'failed' })
+            const failedOrder = usePipelineStore.getState().pipeline?.escenas.find(
+              (s) => s.id === msg.scene_id
+            )?.orden
+            toast.error(`Error en escena ${failedOrder ?? ''}`)
             break
+          }
           case 'scene_status':
             updateSceneFromWS(msg.scene_id, {
               estado: msg.status,

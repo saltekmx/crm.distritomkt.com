@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react'
 import { Check, Loader2, AlertCircle, RefreshCw, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -21,12 +22,27 @@ const statusConfig: Record<string, { label: string; color: string; bg: string; d
 export function SceneCard({ scene, onSelect, onRetry }: Props) {
   const status = statusConfig[scene.estado] || statusConfig.pending
   const isClickable = scene.estado === 'complete' || scene.estado === 'approved'
+  const prevEstado = useRef(scene.estado)
+  const [showCompleteFlash, setShowCompleteFlash] = useState(false)
+
+  useEffect(() => {
+    // Detect transition from generating to complete — trigger green flash
+    if (prevEstado.current === 'generating' && scene.estado === 'complete') {
+      setShowCompleteFlash(true)
+      const timer = setTimeout(() => setShowCompleteFlash(false), 800)
+      return () => clearTimeout(timer)
+    }
+    prevEstado.current = scene.estado
+  }, [scene.estado])
 
   return (
     <div
       className={cn(
-        'card-modern group overflow-hidden transition-all',
-        isClickable && 'cursor-pointer hover:border-primary/50'
+        'card-modern group overflow-hidden transition-all border-2',
+        isClickable && 'cursor-pointer hover:border-primary/50',
+        scene.estado === 'generating' && 'animate-generating-pulse',
+        showCompleteFlash && 'animate-complete-flash',
+        scene.estado !== 'generating' && !showCompleteFlash && 'border-transparent'
       )}
       onClick={() => (isClickable ? onSelect(scene.id) : undefined)}
     >

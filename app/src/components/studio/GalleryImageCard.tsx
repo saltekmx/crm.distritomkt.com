@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Download, Upload, Trash2, Loader2, ImageIcon, Check, Heart, Copy, MessageSquare, ArrowUpRight, Sparkles, Eraser, CheckSquare } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Download, Upload, Trash2, Loader2, ImageIcon, Check, Heart, Copy, MessageSquare, ArrowUpRight, Sparkles, Eraser, CheckSquare, Link, ChevronDown, X, Plus, Tag } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { studioApi, type StudioGeneration } from '@/services/api'
 import { useStudioAiStore } from '@/stores/studioAiStore'
@@ -25,6 +25,8 @@ export function GalleryImageCard({ generation, onExport, onDownload, onDelete }:
   const isUpscaling = useStudioAiStore((s) => s.isUpscaling)
   const isEnhancingImage = useStudioAiStore((s) => s.isEnhancingImage)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showUpscaleMenu, setShowUpscaleMenu] = useState(false)
+  const [showTagEditor, setShowTagEditor] = useState(false)
   const isChatContext = chatContextImageId === generation.id
   const isSelected = selectedImageId === generation.id
   const isMultiSelected = selectedImageIds.has(generation.id)
@@ -75,9 +77,18 @@ export function GalleryImageCard({ generation, onExport, onDownload, onDelete }:
     }
   }
 
-  const handleUpscale = (e: React.MouseEvent) => {
+  const handleUpscale = (e: React.MouseEvent, scale: number) => {
     e.stopPropagation()
-    upscaleImage(generation.id, 2)
+    setShowUpscaleMenu(false)
+    upscaleImage(generation.id, scale)
+  }
+
+  const handleCopyUrl = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (generation.url_salida) {
+      navigator.clipboard.writeText(generation.url_salida)
+      toast.success('URL copiada al portapapeles')
+    }
   }
 
   const handleEnhance = (e: React.MouseEvent) => {
@@ -190,6 +201,14 @@ export function GalleryImageCard({ generation, onExport, onDownload, onDelete }:
                 <Copy className="h-3.5 w-3.5" />
               </button>
               <button
+                onClick={handleCopyUrl}
+                className="p-1.5 rounded-lg bg-zinc-800/80 text-zinc-300 hover:text-white transition-colors"
+                aria-label="Copiar URL"
+                title="Copiar URL"
+              >
+                <Link className="h-3.5 w-3.5" />
+              </button>
+              <button
                 onClick={handlePinToChat}
                 className={cn(
                   'p-1.5 rounded-lg transition-colors',
@@ -226,15 +245,35 @@ export function GalleryImageCard({ generation, onExport, onDownload, onDelete }:
             </div>
             {/* Bottom row: AI quick actions */}
             <div className="flex items-center gap-1">
-              <button
-                onClick={handleUpscale}
-                disabled={isUpscaling}
-                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-zinc-800/80 text-[10px] text-zinc-300 hover:text-white transition-colors disabled:opacity-50"
-                title="Escalar 2x"
-              >
-                <ArrowUpRight className="h-3 w-3" />
-                <span>2x</span>
-              </button>
+              {/* Upscale dropdown */}
+              <div className="relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowUpscaleMenu(!showUpscaleMenu) }}
+                  disabled={isUpscaling}
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-zinc-800/80 text-[10px] text-zinc-300 hover:text-white transition-colors disabled:opacity-50"
+                  title="Escalar imagen"
+                >
+                  <ArrowUpRight className="h-3 w-3" />
+                  <span>Escalar</span>
+                  <ChevronDown className="h-2.5 w-2.5" />
+                </button>
+                {showUpscaleMenu && (
+                  <div className="absolute bottom-full left-0 mb-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg z-10 min-w-[70px]">
+                    <button
+                      onClick={(e) => handleUpscale(e, 2)}
+                      className="w-full px-2.5 py-1.5 text-[10px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors text-left rounded-t-lg"
+                    >
+                      2x
+                    </button>
+                    <button
+                      onClick={(e) => handleUpscale(e, 4)}
+                      className="w-full px-2.5 py-1.5 text-[10px] text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors text-left rounded-b-lg"
+                    >
+                      4x
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={handleEnhance}
                 disabled={isEnhancingImage}
@@ -289,8 +328,122 @@ export function GalleryImageCard({ generation, onExport, onDownload, onDelete }:
         )}
       </div>
 
+      {/* Tags display + editor */}
+      {isComplete && (
+        <div className="mt-0.5 px-0.5">
+          <div className="flex items-center gap-0.5 flex-wrap">
+            {generation.tags?.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[9px] bg-violet-500/10 text-violet-400 border border-violet-500/20"
+              >
+                {tag}
+                {showTagEditor && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const updated = (generation.tags ?? []).filter((t) => t !== tag)
+                      studioApi.updateTags(generation.id, updated).then(({ data }) => {
+                        useStudioStore.setState((s) => ({
+                          generations: s.generations.map((g) =>
+                            g.id === generation.id ? { ...g, tags: data.tags } : g
+                          ),
+                        }))
+                        toast.success('Tag eliminado')
+                      }).catch(() => toast.error('Error al eliminar tag'))
+                    }}
+                    className="text-violet-400 hover:text-red-400 transition-colors"
+                    aria-label={`Quitar tag ${tag}`}
+                  >
+                    <X className="h-2 w-2" />
+                  </button>
+                )}
+              </span>
+            ))}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowTagEditor(!showTagEditor)
+              }}
+              className="p-0.5 rounded text-zinc-600 hover:text-violet-400 transition-colors"
+              title="Editar tags"
+            >
+              <Tag className="h-2.5 w-2.5" />
+            </button>
+          </div>
+          {showTagEditor && (
+            <TagEditorInline
+              generationId={generation.id}
+              currentTags={generation.tags ?? []}
+            />
+          )}
+        </div>
+      )}
+
       {/* Prompt label */}
       <p className="text-[10px] text-zinc-500 mt-1 truncate px-0.5">{generation.prompt}</p>
+    </div>
+  )
+}
+
+// ---- Inline Tag Editor ----
+
+function TagEditorInline({ generationId, currentTags }: { generationId: number; currentTags: string[] }) {
+  const [newTag, setNewTag] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleAddTag = async () => {
+    const trimmed = newTag.trim().toLowerCase()
+    if (!trimmed) return
+    if (currentTags.includes(trimmed)) {
+      toast.error('Tag ya existe')
+      return
+    }
+    setIsSaving(true)
+    try {
+      const updated = [...currentTags, trimmed]
+      const { data } = await studioApi.updateTags(generationId, updated)
+      useStudioStore.setState((s) => ({
+        generations: s.generations.map((g) =>
+          g.id === generationId ? { ...g, tags: data.tags } : g
+        ),
+      }))
+      setNewTag('')
+      inputRef.current?.focus()
+    } catch {
+      toast.error('Error al agregar tag')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div
+      className="mt-1 flex items-center gap-1"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <input
+        ref={inputRef}
+        value={newTag}
+        onChange={(e) => setNewTag(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            handleAddTag()
+          }
+        }}
+        placeholder="nuevo tag..."
+        className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5 text-[9px] text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50"
+      />
+      <button
+        onClick={handleAddTag}
+        disabled={!newTag.trim() || isSaving}
+        className="p-0.5 rounded text-violet-400 hover:text-violet-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        aria-label="Agregar tag"
+      >
+        {isSaving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Plus className="h-2.5 w-2.5" />}
+      </button>
     </div>
   )
 }

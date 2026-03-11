@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { Toaster } from 'sonner'
@@ -28,8 +28,6 @@ export function StudioLayout() {
     setStudioMode,
     leftTab,
     activeImageId,
-    selectedVideoProjectId,
-    setSelectedVideoProjectId,
   } = useStudioAiStore()
 
   const isGenerating = storeGenerating || aiGenerating
@@ -73,26 +71,15 @@ export function StudioLayout() {
     if (latest) setSelectedImageId(latest.id)
   }, [generations, selectedImageId, setSelectedImageId, leftTab])
 
-  // Keep refs for values used in mode-change effect that should not trigger re-runs
-  const selectedVideoProjectIdRef = useRef(selectedVideoProjectId)
-  useEffect(() => { selectedVideoProjectIdRef.current = selectedVideoProjectId }, [selectedVideoProjectId])
-  const projectIdRef = useRef(projectId)
-  useEffect(() => { projectIdRef.current = projectId }, [projectId])
-
-  // When entering a mode, auto-set appropriate leftTab and project
+  // When entering image mode, reset leftTab if it was on video-specific tabs
   useEffect(() => {
-    if (studioMode === 'video') {
-      // Auto-select current project if none selected
-      if (!selectedVideoProjectIdRef.current && projectIdRef.current) {
-        setSelectedVideoProjectId(projectIdRef.current)
-      }
-    } else if (studioMode === 'image') {
+    if (studioMode === 'image') {
       const currentTab = useStudioAiStore.getState().leftTab
       if (currentTab === 'scenes' || currentTab === 'assets') {
         useStudioAiStore.setState({ leftTab: 'gallery' })
       }
     }
-  }, [studioMode, setSelectedVideoProjectId])
+  }, [studioMode])
 
   // Derive canvas generation from activeImageId (focused) or selectedImageId
   const activeId = activeImageId ?? selectedImageId
@@ -167,12 +154,12 @@ export function StudioLayout() {
 
         {studioMode === 'video' && (
           <div className="flex-1 flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <StudioVideoPipeline projectId={selectedVideoProjectId} />
+            <StudioVideoPipeline projectId={projectId} />
           </div>
         )}
 
-        {/* Right panel - only in editor modes */}
-        {studioMode !== 'home' && (
+        {/* Right panel - only in image mode */}
+        {studioMode === 'image' && (
           <div className="animate-in fade-in slide-in-from-right-4 duration-500">
             <StudioRightPanel projectId={projectId} projectName={projectName} />
           </div>
