@@ -26,10 +26,6 @@ import {
   ImageIcon,
   DollarSign,
   PanelLeft,
-  PanelRight,
-  FileText,
-  Layout,
-  Eye,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePipelineStore, type UIStage } from '@/stores/pipelineStore'
@@ -40,7 +36,6 @@ import { MAX_SCENES, STATUS_CONFIG } from '@/constants/pipeline'
 import { RevisionChat } from '@/components/pipeline/RevisionChat'
 import { PromptHistoryViewer } from '@/components/pipeline/PromptHistoryViewer'
 import { PipelineLeftPanel } from '@/components/pipeline/PipelineLeftPanel'
-import { PipelineRightPanel } from '@/components/pipeline/PipelineRightPanel'
 import { useRef } from 'react'
 import { toast } from 'sonner'
 
@@ -82,15 +77,6 @@ const MODEL_COST_PER_SEC: Record<string, number> = {
   'kling/v3': 0.03,
 }
 
-const STAGE_LABELS: Record<UIStage, string> = {
-  idle: 'Brief',
-  brief: 'Brief',
-  planned: 'Escenas',
-  generating: 'Generar',
-  review: 'Revisar',
-  export: 'Exportar',
-}
-
 // ── Responsive Hook ──────────────────────────────────────────────────────────
 
 function usePipelineResponsive() {
@@ -116,21 +102,9 @@ function usePipelineResponsive() {
   }, [])
 
   return {
-    isRightCollapsed: width < 1280,
     isLeftCollapsed: width < 1024,
     isMobile: width < 768,
   }
-}
-
-// ── Stage icon mapping for collapsed rails ──────────────────────────────────
-
-const STAGE_RAIL_ICONS: Record<UIStage, React.ComponentType<{ className?: string }>> = {
-  idle: FileText,
-  brief: FileText,
-  planned: Layout,
-  generating: Play,
-  review: Eye,
-  export: Download,
 }
 
 // ── Props ────────────────────────────────────────────────────────────────────
@@ -174,20 +148,13 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
   const [draftMode, setDraftMode] = useState(false)
   const [defaultDuration, setDefaultDuration] = useState(6)
   const [defaultAspectRatio, setDefaultAspectRatio] = useState('16:9')
-  const [exportDestination, setExportDestination] = useState<'library' | 'download' | 'shareable'>('library')
-  const [includeMetadataJson, setIncludeMetadataJson] = useState(true)
-
   const { reset: resetPipeline } = usePipelineStore()
 
   // Responsive breakpoints
-  const { isRightCollapsed, isLeftCollapsed, isMobile } = usePipelineResponsive()
+  const { isLeftCollapsed, isMobile } = usePipelineResponsive()
   const [leftPanelOpen, setLeftPanelOpen] = useState(false)
-  const [rightPanelOpen, setRightPanelOpen] = useState(false)
 
   // Close overlays when breakpoint changes back to non-collapsed
-  useEffect(() => {
-    if (!isRightCollapsed) setRightPanelOpen(false)
-  }, [isRightCollapsed])
   useEffect(() => {
     if (!isLeftCollapsed) setLeftPanelOpen(false)
   }, [isLeftCollapsed])
@@ -323,7 +290,11 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
               <select
                 value={quality}
                 onChange={(e) => setQuality(e.target.value)}
-                className="rounded-md bg-zinc-800/60 border border-zinc-700/40 px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500/40 appearance-none pr-6 cursor-pointer"
+                disabled={currentStage === 'generating' || currentStage === 'export'}
+                className={cn(
+                  "rounded-md bg-zinc-800/60 border border-zinc-700/40 px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-violet-500/40 appearance-none pr-6",
+                  (currentStage === 'generating' || currentStage === 'export') ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+                )}
                 style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
               >
                 {Object.entries(
@@ -429,16 +400,6 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
               referenceImages={selectedImages}
               onRemoveReference={(url) => setSelectedImages(selectedImages.filter((u) => u !== url))}
               onImportReferences={() => {/* TODO: open asset library modal */}}
-              quality={quality}
-              onQualityChange={setQuality}
-              duration={defaultDuration}
-              onDurationChange={setDefaultDuration}
-              aspectRatio={defaultAspectRatio}
-              onAspectRatioChange={setDefaultAspectRatio}
-              audioEnabled={audioEnabled}
-              onAudioToggle={setAudioEnabled}
-              draftMode={draftMode}
-              onDraftModeToggle={setDraftMode}
               estimatedCost={pipeline.escenas.reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
               costBreakdown={`${pipeline.escenas.length} escena${pipeline.escenas.length !== 1 ? 's' : ''} × ${defaultDuration}s × ${(MODEL_OPTIONS.find((m) => m.value === quality)?.label ?? quality)}`}
             />
@@ -518,78 +479,6 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
           )}
         </div>
 
-        {/* Right Panel — stage-dependent contextual content */}
-        {pipeline && currentStage !== 'idle' && !isMobile && (
-          isRightCollapsed ? (
-            /* Collapsed right rail */
-            <div className="w-[40px] shrink-0 border-l border-zinc-800/40 bg-zinc-950/60 flex flex-col items-center py-3 gap-1">
-              <button
-                type="button"
-                onClick={() => setRightPanelOpen(true)}
-                className="p-2 rounded-lg text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
-                title="Abrir panel derecho"
-              >
-                <PanelRight className="h-4 w-4" />
-              </button>
-              {/* Stage-specific icon indicators — all clickable */}
-              <div className="flex flex-col items-center gap-1 mt-2">
-                {VISUAL_STEPS.map((step) => {
-                  const StageIcon = STAGE_RAIL_ICONS[step.stages[0]]
-                  const isActive = step.stages.includes(currentStage)
-                  const currentVisualIdx = VISUAL_STEPS.findIndex((s) => s.stages.includes(currentStage))
-                  const stepIdx = VISUAL_STEPS.indexOf(step)
-                  const isNotYetReached = stepIdx > currentVisualIdx
-                  return (
-                    <button
-                      key={step.label}
-                      type="button"
-                      onClick={() => {
-                        usePipelineStore.getState().setStage(step.stages[0])
-                        setRightPanelOpen(true)
-                      }}
-                      className={cn(
-                        'p-1.5 rounded-md transition-all cursor-pointer',
-                        isActive
-                          ? 'text-violet-400 bg-violet-500/10'
-                          : isNotYetReached
-                            ? 'text-zinc-600 hover:text-zinc-400 border border-dashed border-zinc-700/40'
-                            : 'text-zinc-600 hover:text-zinc-400',
-                      )}
-                      title={step.label}
-                    >
-                      <StageIcon className="h-3.5 w-3.5" />
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ) : (
-            <PipelineRightPanel
-              stage={currentStage}
-              scenes={pipeline.escenas}
-              activeSceneId={activeSceneId}
-              styleGuide={pipeline.guia_estilo}
-              onReanalyze={handleStartPipeline}
-              costGenerated={pipeline.escenas.filter((s) => s.estado === 'complete' || s.estado === 'approved').reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
-              costPending={pipeline.escenas.filter((s) => s.estado === 'pending' || s.estado === 'generating').reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
-              onRetryFailed={() => {
-                pipeline.escenas.filter((s) => s.estado === 'failed').forEach((s) => generateSingleScene(s.id, quality))
-              }}
-              onCancelAll={handleCancel}
-              onApproveAll={async () => {
-                for (const s of pipeline.escenas.filter((s) => !s.aprobado && (s.estado === 'complete' || s.estado === 'approved'))) {
-                  await approveScene(s.id)
-                }
-              }}
-              onGoToExport={() => usePipelineStore.getState().setStage('export')}
-              exportDestination={exportDestination}
-              onExportDestinationChange={setExportDestination}
-              includeMetadataJson={includeMetadataJson}
-              onIncludeMetadataJsonChange={setIncludeMetadataJson}
-              totalCost={pipeline.escenas.reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
-            />
-          )
-        )}
       </div>
 
       {/* Overlay: Left panel (when collapsed and opened) */}
@@ -610,16 +499,6 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
               referenceImages={selectedImages}
               onRemoveReference={(url) => setSelectedImages(selectedImages.filter((u) => u !== url))}
               onImportReferences={() => {/* TODO: open asset library modal */}}
-              quality={quality}
-              onQualityChange={setQuality}
-              duration={defaultDuration}
-              onDurationChange={setDefaultDuration}
-              aspectRatio={defaultAspectRatio}
-              onAspectRatioChange={setDefaultAspectRatio}
-              audioEnabled={audioEnabled}
-              onAudioToggle={setAudioEnabled}
-              draftMode={draftMode}
-              onDraftModeToggle={setDraftMode}
               estimatedCost={pipeline.escenas.reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
               costBreakdown={`${pipeline.escenas.length} escena${pipeline.escenas.length !== 1 ? 's' : ''} × ${defaultDuration}s × ${(MODEL_OPTIONS.find((m) => m.value === quality)?.label ?? quality)}`}
             />
@@ -627,43 +506,7 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
         </>
       )}
 
-      {/* Overlay: Right panel (when collapsed and opened) */}
-      {pipeline && currentStage !== 'idle' && isRightCollapsed && rightPanelOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-black/50"
-            onClick={() => setRightPanelOpen(false)}
-          />
-          <div className="fixed inset-y-0 right-0 z-50 w-[320px] animate-slide-in-right">
-            <PipelineRightPanel
-              stage={currentStage}
-              scenes={pipeline.escenas}
-              activeSceneId={activeSceneId}
-              styleGuide={pipeline.guia_estilo}
-              onReanalyze={handleStartPipeline}
-              costGenerated={pipeline.escenas.filter((s) => s.estado === 'complete' || s.estado === 'approved').reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
-              costPending={pipeline.escenas.filter((s) => s.estado === 'pending' || s.estado === 'generating').reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
-              onRetryFailed={() => {
-                pipeline.escenas.filter((s) => s.estado === 'failed').forEach((s) => generateSingleScene(s.id, quality))
-              }}
-              onCancelAll={handleCancel}
-              onApproveAll={async () => {
-                for (const s of pipeline.escenas.filter((s) => !s.aprobado && (s.estado === 'complete' || s.estado === 'approved'))) {
-                  await approveScene(s.id)
-                }
-              }}
-              onGoToExport={() => usePipelineStore.getState().setStage('export')}
-              exportDestination={exportDestination}
-              onExportDestinationChange={setExportDestination}
-              includeMetadataJson={includeMetadataJson}
-              onIncludeMetadataJsonChange={setIncludeMetadataJson}
-              totalCost={pipeline.escenas.reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
-            />
-          </div>
-        </>
-      )}
-
-      {/* Mobile floating panel toggles */}
+      {/* Mobile floating panel toggle */}
       {pipeline && currentStage !== 'idle' && isMobile && (
         <div className="fixed bottom-16 right-3 z-30 flex flex-col gap-2">
           <button
@@ -673,14 +516,6 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
             title="Escenas"
           >
             <PanelLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setRightPanelOpen(true)}
-            className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700/50 flex items-center justify-center text-zinc-400 hover:text-violet-400 hover:border-violet-500/30 transition-all shadow-lg"
-            title={STAGE_LABELS[currentStage]}
-          >
-            <PanelRight className="h-4 w-4" />
           </button>
         </div>
       )}

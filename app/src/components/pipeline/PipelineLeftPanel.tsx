@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   Plus,
   X,
@@ -8,7 +7,6 @@ import {
   ChevronUp,
   DollarSign,
   Check,
-  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type PipelineScene } from '@/services/api'
@@ -29,17 +27,6 @@ export interface PipelineLeftPanelProps {
   onRemoveReference?: (url: string) => void
   onSetPrimaryReference?: (url: string) => void
   onImportReferences?: () => void
-  // Quick settings
-  quality: string
-  onQualityChange: (v: string) => void
-  duration: number
-  onDurationChange: (v: number) => void
-  aspectRatio: string
-  onAspectRatioChange: (v: string) => void
-  audioEnabled: boolean
-  onAudioToggle: (v: boolean) => void
-  draftMode: boolean
-  onDraftModeToggle: (v: boolean) => void
   // Cost
   estimatedCost: number
   costBreakdown: string
@@ -68,68 +55,6 @@ function StatusDot({ estado }: { estado: PipelineScene['estado'] }) {
   }
 
   return <span className={cn('h-2 w-2 rounded-full', cfg.dot)} />
-}
-
-// ── Segmented control ────────────────────────────────────────────────────────
-
-function SegmentedControl<T extends string | number>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { label: string; value: T }[]
-  value: T
-  onChange: (v: T) => void
-}) {
-  return (
-    <div className="flex rounded-lg border border-zinc-700/30 bg-zinc-900/60 p-0.5">
-      {options.map((opt) => (
-        <button
-          key={String(opt.value)}
-          type="button"
-          onClick={() => onChange(opt.value)}
-          className={cn(
-            'flex-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all',
-            value === opt.value
-              ? 'bg-violet-500/20 text-violet-300'
-              : 'text-zinc-500 hover:text-zinc-300',
-          )}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-// ── Toggle switch ────────────────────────────────────────────────────────────
-
-function Toggle({
-  checked,
-  onChange,
-}: {
-  checked: boolean
-  onChange: (v: boolean) => void
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        'relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full transition-colors',
-        checked ? 'bg-violet-500' : 'bg-zinc-700',
-      )}
-    >
-      <span
-        className={cn(
-          'pointer-events-none inline-block h-3 w-3 translate-y-0.5 rounded-full bg-white shadow transition-transform',
-          checked ? 'translate-x-3.5' : 'translate-x-0.5',
-        )}
-      />
-    </button>
-  )
 }
 
 // ── Section header ───────────────────────────────────────────────────────────
@@ -185,21 +110,9 @@ export function PipelineLeftPanel({
   onRemoveReference,
   onSetPrimaryReference,
   onImportReferences,
-  quality,
-  onQualityChange,
-  duration,
-  onDurationChange,
-  aspectRatio,
-  onAspectRatioChange,
-  audioEnabled,
-  onAudioToggle,
-  draftMode,
-  onDraftModeToggle,
   estimatedCost,
   costBreakdown,
 }: PipelineLeftPanelProps) {
-  const [settingsCollapsed, setSettingsCollapsed] = useState(true)
-
   // Sort scenes by order
   const sortedScenes = [...scenes].sort((a, b) => a.orden - b.orden)
 
@@ -355,94 +268,6 @@ export function PipelineLeftPanel({
             </button>
           )}
         </div>
-      </div>
-
-      {/* ── AJUSTES RAPIDOS ──────────────────────────────────────────── */}
-      <div className="border-t border-zinc-800/40">
-        <SectionHeader
-          title="Ajustes rapidos"
-          collapsible
-          collapsed={settingsCollapsed}
-          onToggle={() => setSettingsCollapsed((v) => !v)}
-        />
-
-        {!settingsCollapsed && (
-          <div className="space-y-3 px-3 pb-3">
-            {/* Modelo */}
-            <div>
-              <label className="mb-1 block text-[10px] font-medium text-zinc-500">
-                Modelo
-              </label>
-              <select
-                value={quality}
-                onChange={(e) => onQualityChange(e.target.value)}
-                className="w-full rounded-lg border border-zinc-700/30 bg-zinc-900/60 px-2.5 py-1.5 text-[11px] text-zinc-200 focus:border-violet-500/40 focus:outline-none"
-              >
-                <optgroup label="Google Veo">
-                  <option value="veo-3.1-fast">Veo 3.1 Fast</option>
-                  <option value="veo-3.1">Veo 3.1 HQ</option>
-                </optgroup>
-                <optgroup label="Kling">
-                  <option value="kling/v1.5">Kling v1.5</option>
-                  <option value="kling/v1.6">Kling v1.6</option>
-                  <option value="kling/v2.1-master">Kling v2.1 Master</option>
-                  <option value="kling/v2.5">Kling v2.5 Turbo</option>
-                  <option value="kling/v2.6">Kling v2.6</option>
-                  <option value="kling/v3">Kling v3</option>
-                </optgroup>
-              </select>
-            </div>
-
-            {/* Duracion */}
-            <div>
-              <label className="mb-1 block text-[10px] font-medium text-zinc-500">
-                Duracion
-              </label>
-              <SegmentedControl
-                options={[
-                  { label: '4s', value: 4 },
-                  { label: '6s', value: 6 },
-                  { label: '8s', value: 8 },
-                ]}
-                value={duration}
-                onChange={onDurationChange}
-              />
-            </div>
-
-            {/* Ratio */}
-            <div>
-              <label className="mb-1 block text-[10px] font-medium text-zinc-500">
-                Ratio
-              </label>
-              <SegmentedControl
-                options={[
-                  { label: '16:9', value: '16:9' },
-                  { label: '9:16', value: '9:16' },
-                  { label: '1:1', value: '1:1' },
-                  { label: '4:5', value: '4:5' },
-                ]}
-                value={aspectRatio}
-                onChange={onAspectRatioChange}
-              />
-            </div>
-
-            {/* Audio toggle */}
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-medium text-zinc-500">
-                Audio
-              </span>
-              <Toggle checked={audioEnabled} onChange={onAudioToggle} />
-            </div>
-
-            {/* Draft mode toggle */}
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-medium text-zinc-500">
-                Draft mode
-              </span>
-              <Toggle checked={draftMode} onChange={onDraftModeToggle} />
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── COSTO ESTIMADO (pinned bottom) ───────────────────────────── */}

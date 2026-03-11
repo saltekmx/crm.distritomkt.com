@@ -708,6 +708,9 @@ export const pipelineApi = {
   cancelPipeline: (pipelineId: number) =>
     api.post(`/pipeline/${pipelineId}/cancel`),
 
+  renamePipeline: (pipelineId: number, name: string) =>
+    api.patch<{ id: number; brief_snapshot: string }>(`/pipeline/${pipelineId}/rename`, { name }),
+
   // Comments
   getComments: (pipelineId: number, sceneId: number) =>
     api.get<PipelineComment[]>(`/pipeline/${pipelineId}/comments/${sceneId}`),

@@ -64,6 +64,7 @@ interface PipelineStore {
   generateSingleScene: (sceneId: number, quality?: string) => Promise<void>
   cancelGeneration: (pipelineId: number) => Promise<void>
   setSceneReferenceAsset: (sceneId: number, assetId: number | null) => Promise<void>
+  renamePipeline: (pipelineId: number, name: string) => Promise<void>
   reloadPipeline: () => Promise<void>
   reset: () => void
 }
@@ -407,6 +408,23 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
       }))
     } catch {
       toast.error('Error al asignar imagen de referencia')
+    }
+  },
+
+  renamePipeline: async (pipelineId, name) => {
+    try {
+      const { data } = await pipelineApi.renamePipeline(pipelineId, name)
+      // Update in versions list
+      set((state) => ({
+        pipelineVersions: state.pipelineVersions.map((v) =>
+          v.id === pipelineId ? { ...v, brief_snapshot: data.brief_snapshot } : v
+        ),
+        pipeline: state.pipeline?.id === pipelineId
+          ? { ...state.pipeline, brief_snapshot: data.brief_snapshot }
+          : state.pipeline,
+      }))
+    } catch {
+      toast.error('Error al renombrar pipeline')
     }
   },
 
