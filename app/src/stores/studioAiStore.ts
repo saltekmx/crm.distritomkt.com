@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { toast } from 'sonner'
 import { studioApi, type StudioGeneration, type StudioTemplate } from '@/services/api'
 import { useStudioStore } from './studioStore'
+import { useStudioCanvasStore } from './studioCanvasStore'
 
 export interface StudioAiMessage {
   id: string
@@ -12,11 +13,11 @@ export interface StudioAiMessage {
 }
 
 export type PanelTab = 'generate' | 'adjust' | 'gallery'
-export type LeftTab = 'adjust' | 'gallery' | 'scenes' | 'assets'
+export type LeftTab = 'generate' | 'adjust' | 'gallery' | 'edit' | 'scenes' | 'assets'
 
 // ── Hub (AI Chat Home) types ──────────────────────────────────────────────────
 
-export type StudioMode = 'home' | 'image' | 'video'
+export type StudioMode = 'home' | 'image' | 'video' | 'try-on'
 
 export interface HubCard {
   type: 'project_status' | 'asset_preview' | 'approval_confirmation' | 'session_info'
@@ -24,7 +25,7 @@ export interface HubCard {
 }
 
 export interface HubAction {
-  type: 'open_image_editor' | 'generate_image' | 'open_video_pipeline' | 'approve_asset' | 'export_asset' | 'show_gallery' | 'show_asset' | 'open_adjust' | 'set_reference_image'
+  type: 'open_image_editor' | 'generate_image' | 'open_video_pipeline' | 'approve_asset' | 'export_asset' | 'show_gallery' | 'show_asset' | 'open_adjust' | 'set_reference_image' | 'generate_variation' | 'inpaint_image' | 'outpaint_image'
   params: Record<string, unknown>
 }
 
@@ -61,7 +62,7 @@ interface StudioAiStore {
 
   // Model / batch / format
   selectedModel: string
-  availableModels: Array<{ id: string; name: string; api_type: string; max_batch: number; supports_editing: boolean; aspect_ratios: string[]; price_hint: string }>
+  availableModels: Array<{ id: string; name: string; api_type: string; max_batch: number; supports_editing: boolean; aspect_ratios: string[]; price_hint: string; dimensions: Record<string, string> | null }>
   batchSize: number
   outputFormat: string
   isDescribing: boolean
@@ -69,6 +70,12 @@ interface StudioAiStore {
   isEnhancingImage: boolean
   seed: number | null
   seedLocked: boolean
+
+  // Inpaint / Outpaint overlay state
+  showInpaintOverlay: boolean
+  showOutpaintControls: boolean
+  setShowInpaintOverlay: (show: boolean) => void
+  setShowOutpaintControls: (show: boolean) => void
 
   // Hub state
   studioMode: StudioMode
@@ -123,6 +130,11 @@ interface StudioAiStore {
   consumePendingPrompt: () => string | null
   clearMessages: () => void
   reset: () => void
+
+  // Runware actions
+  createVariation: (generationId: number, prompt?: string) => Promise<void>
+  inpaintGeneration: (generationId: number, prompt: string, maskDataUrl: string, negativePrompt?: string) => Promise<void>
+  outpaintGeneration: (generationId: number, data: { prompt?: string; expand_left?: number; expand_right?: number; expand_up?: number; expand_down?: number }) => Promise<void>
 
   // Hub actions
   setStudioMode: (mode: StudioMode) => void
@@ -201,7 +213,7 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
     isOpen: saved.open,
     panelWidth: saved.width,
     activeTab: saved.activeTab,
-    leftTab: null,
+    leftTab: 'generate',
     selectedStyle: null,
     selectedRatio: '1:1',
     selectedImageId: null,
@@ -217,7 +229,7 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
     pendingPrompt: null,
 
     // Model / batch / format
-    selectedModel: 'gemini-2.5-flash-image',
+    selectedModel: 'flux-dev',
     availableModels: [],
     batchSize: 1,
     outputFormat: 'png',
@@ -226,6 +238,10 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
     isEnhancingImage: false,
     seed: null,
     seedLocked: false,
+
+    // Inpaint / Outpaint overlay state
+    showInpaintOverlay: false,
+    showOutpaintControls: false,
 
     // Hub state
     studioMode: 'home',
@@ -270,10 +286,10 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
       set({ isUpscaling: true })
       try {
         const { data } = await studioApi.upscaleImage(generationId, scale)
-        // Add the new generation to the store
         useStudioStore.setState((s) => ({
           generations: [data, ...s.generations],
         }))
+        useStudioCanvasStore.getState().addToBoard(data.id)
         set({ isUpscaling: false, selectedImageId: data.id })
         toast.success(`Imagen escalada ${scale}x`)
       } catch {
@@ -288,6 +304,7 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
         useStudioStore.setState((s) => ({
           generations: [data, ...s.generations],
         }))
+        useStudioCanvasStore.getState().addToBoard(data.id)
         set({ isEnhancingImage: false, selectedImageId: data.id })
         toast.success('Imagen mejorada')
       } catch {
@@ -344,6 +361,8 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
     setCompareParentId: (id) => set({ compareParentId: id }),
     setNegativePrompt: (text) => set({ negativePrompt: text }),
     setReferenceImageUrl: (url) => set({ referenceImageUrl: url }),
+    setShowInpaintOverlay: (show) => set({ showInpaintOverlay: show }),
+    setShowOutpaintControls: (show) => set({ showOutpaintControls: show }),
 
     sendMessage: async (text, projectId) => {
       const { selectedStyle, selectedRatio, negativePrompt, referenceImageUrl, selectedModel, batchSize, outputFormat, seed } = get()
@@ -402,6 +421,9 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
         useStudioStore.setState((s) => ({
           generations: [data, ...s.generations],
         }))
+
+        // Place on board
+        useStudioCanvasStore.getState().addToBoard(data.id)
 
         // Select the new image
         if (data.estado === 'complete') {
@@ -514,6 +536,51 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
     },
 
     clearMessages: () => set({ messages: [] }),
+
+    // ── Runware actions ────────────────────────────────────────────────────────
+
+    createVariation: async (generationId, prompt) => {
+      set({ isGenerating: true })
+      try {
+        const { selectedRatio, selectedModel } = get()
+        const { data } = await studioApi.variationImage(generationId, { prompt, aspect_ratio: selectedRatio, model: selectedModel })
+        useStudioStore.setState((s) => ({ generations: [data, ...s.generations] }))
+        useStudioCanvasStore.getState().addToBoard(data.id)
+        set({ isGenerating: false, selectedImageId: data.id })
+        toast.success('Variacion creada')
+      } catch {
+        set({ isGenerating: false })
+        toast.error('Error al crear variacion')
+      }
+    },
+
+    inpaintGeneration: async (generationId, prompt, maskDataUrl, negativePrompt) => {
+      set({ isGenerating: true, showInpaintOverlay: false })
+      try {
+        const { data } = await studioApi.inpaintImage(generationId, { prompt, mask_data_url: maskDataUrl, negative_prompt: negativePrompt })
+        useStudioStore.setState((s) => ({ generations: [data, ...s.generations] }))
+        useStudioCanvasStore.getState().addToBoard(data.id)
+        set({ isGenerating: false, selectedImageId: data.id })
+        toast.success('Region editada')
+      } catch {
+        set({ isGenerating: false })
+        toast.error('Error al editar region')
+      }
+    },
+
+    outpaintGeneration: async (generationId, expandData) => {
+      set({ isGenerating: true, showOutpaintControls: false })
+      try {
+        const { data } = await studioApi.outpaintImage(generationId, expandData)
+        useStudioStore.setState((s) => ({ generations: [data, ...s.generations] }))
+        useStudioCanvasStore.getState().addToBoard(data.id)
+        set({ isGenerating: false, selectedImageId: data.id })
+        toast.success('Lienzo expandido')
+      } catch {
+        set({ isGenerating: false })
+        toast.error('Error al expandir lienzo')
+      }
+    },
 
     // ── Hub actions ───────────────────────────────────────────────────────────
 
@@ -837,6 +904,42 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
           }
           break
         }
+
+        case 'generate_variation': {
+          const selId = get().selectedImageId
+          if (!selId) {
+            toast.info('Selecciona una imagen primero')
+            break
+          }
+          const varPrompt = p.prompt as string | undefined
+          get().createVariation(selId, varPrompt)
+          break
+        }
+
+        case 'inpaint_image': {
+          const selId = get().selectedImageId
+          if (!selId) {
+            toast.info('Selecciona una imagen primero para editar')
+            break
+          }
+          // Show inpaint overlay — user will draw mask and submit
+          set({ showInpaintOverlay: true })
+          // Store the suggested prompt in pendingPrompt for InpaintOverlay to pick up
+          if (p.prompt) set({ pendingPrompt: p.prompt as string })
+          break
+        }
+
+        case 'outpaint_image': {
+          const selId = get().selectedImageId
+          if (!selId) {
+            toast.info('Selecciona una imagen primero para expandir')
+            break
+          }
+          // Show outpaint controls
+          set({ showOutpaintControls: true })
+          if (p.prompt) set({ pendingPrompt: p.prompt as string })
+          break
+        }
       }
     },
 
@@ -979,6 +1082,7 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
     },
 
     reset: () => {
+      useStudioCanvasStore.getState().clearBoard()
       set({
         messages: [],
         selectedStyle: null,
@@ -991,7 +1095,7 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
         referenceImageUrl: null,
         isEnhancing: false,
         pendingPrompt: null,
-        selectedModel: 'gemini-2.5-flash-image',
+        selectedModel: 'flux-dev',
         batchSize: 1,
         outputFormat: 'png',
         availableModels: [],

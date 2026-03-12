@@ -10,14 +10,8 @@ const stylePresets = [
   { id: 'cinematic', label: 'Cinematico' },
 ] as const
 
-const aspectRatios = [
-  { id: '1:1', label: '1:1' },
-  { id: '4:5', label: '4:5' },
-  { id: '3:4', label: '3:4' },
-  { id: '16:9', label: '16:9' },
-  { id: '9:16', label: '9:16' },
-  { id: '3:2', label: '3:2' },
-] as const
+// All known ratios — models filter this list via aspect_ratios
+const ALL_ASPECT_RATIOS = ['1:1', '4:5', '3:4', '16:9', '9:16', '3:2', '2:3', '5:4']
 
 const outputFormats = [
   { id: 'png', label: 'PNG' },
@@ -51,6 +45,22 @@ export function QuickControls() {
 
   const currentModelInfo = availableModels.find((m) => m.id === selectedModel)
   const maxBatch = currentModelInfo?.max_batch ?? 1
+
+  // Ratios supported by the current model (fall back to a default set)
+  const allowedRatios: string[] =
+    currentModelInfo?.aspect_ratios?.length
+      ? ALL_ASPECT_RATIOS.filter((r) => currentModelInfo.aspect_ratios.includes(r))
+      : ALL_ASPECT_RATIOS.slice(0, 6)
+
+  // If selected ratio is not allowed by this model, snap to first allowed
+  useEffect(() => {
+    if (allowedRatios.length > 0 && !allowedRatios.includes(selectedRatio)) {
+      setSelectedRatio(allowedRatios[0])
+    }
+  }, [selectedModel, allowedRatios, selectedRatio, setSelectedRatio])
+
+  // Per-model exact pixel dimensions (e.g. recraft-v4-pro)
+  const modelDimensions = currentModelInfo?.dimensions ?? null
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
@@ -95,23 +105,32 @@ export function QuickControls() {
 
       <div className="h-4 w-px bg-zinc-700" />
 
-      {/* Aspect ratios */}
+      {/* Aspect ratios — filtered to model's allowed ratios */}
       <div className="flex items-center gap-1.5">
         <span className="text-xs text-zinc-500 mr-1">Ratio</span>
-        {aspectRatios.map((ratio) => (
-          <button
-            key={ratio.id}
-            onClick={() => setSelectedRatio(ratio.id)}
-            className={cn(
-              'px-2.5 py-1 rounded-md text-xs font-medium transition-all',
-              selectedRatio === ratio.id
-                ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/30'
-                : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-300'
-            )}
-          >
-            {ratio.label}
-          </button>
-        ))}
+        {allowedRatios.map((ratio) => {
+          const dimLabel = modelDimensions?.[ratio]
+            ? ` ${modelDimensions[ratio].split('x')[0]}px`
+            : ''
+          return (
+            <button
+              key={ratio}
+              onClick={() => setSelectedRatio(ratio)}
+              title={modelDimensions?.[ratio] ? `${modelDimensions[ratio]} px` : ratio}
+              className={cn(
+                'px-2.5 py-1 rounded-md text-xs font-medium transition-all',
+                selectedRatio === ratio
+                  ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/30'
+                  : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-300'
+              )}
+            >
+              {ratio}
+              {dimLabel && (
+                <span className="ml-1 text-[10px] text-zinc-600">{dimLabel}</span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* Batch size — only show if model supports it */}

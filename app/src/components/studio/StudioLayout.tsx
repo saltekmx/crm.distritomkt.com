@@ -6,31 +6,29 @@ import { useStudioStore } from '@/stores/studioStore'
 import { useStudioAiStore } from '@/stores/studioAiStore'
 import { projectsApi } from '@/services/api'
 import { StudioHeader } from './StudioHeader'
-import { StudioCanvas } from './StudioCanvas'
 import { StudioLeftPanel } from './StudioLeftPanel'
 import { StudioRightPanel } from './StudioRightPanel'
-import { StudioHome } from './StudioHome'
-import { StudioDashboard } from './StudioDashboard'
+import { ImageBoard } from './ImageBoard'
+import { InpaintOverlay } from './InpaintOverlay'
+import { OutpaintControls } from './OutpaintControls'
+import { QuickControls } from './QuickControls'
 import { StudioVideoPipeline } from './StudioVideoPipeline'
 
 export function StudioLayout() {
   const { id } = useParams<{ id: string }>()
   const projectId = id ? Number(id) : 0
 
-  const { generations, isLoading, isGenerating: storeGenerating, loadGenerations, setProjectId, reset: resetStudio } = useStudioStore()
+  const { generations, isLoading, loadGenerations, setProjectId, reset: resetStudio } = useStudioStore()
   const {
     selectedImageId,
     setSelectedImageId,
-    isGenerating: aiGenerating,
-    reset: resetAi,
-    sendMessage,
-    studioMode,
-    setStudioMode,
     leftTab,
     activeImageId,
+    showInpaintOverlay,
+    showOutpaintControls,
+    studioMode,
+    reset: resetAi,
   } = useStudioAiStore()
-
-  const isGenerating = storeGenerating || aiGenerating
 
   const [projectName, setProjectName] = useState('')
 
@@ -55,8 +53,7 @@ export function StudioLayout() {
     }
   }, [id, projectId, setProjectId, loadGenerations, resetStudio, resetAi])
 
-  // Auto-select latest completed image if none selected (only matters for image/video modes)
-  // Skip auto-select when gallery is open — user is browsing, not editing
+  // Auto-select latest completed image if none selected
   useEffect(() => {
     if (selectedImageId) {
       const exists = generations.some((g) => g.id === selectedImageId)
@@ -71,16 +68,6 @@ export function StudioLayout() {
     if (latest) setSelectedImageId(latest.id)
   }, [generations, selectedImageId, setSelectedImageId, leftTab])
 
-  // When entering image mode, reset leftTab if it was on video-specific tabs
-  useEffect(() => {
-    if (studioMode === 'image') {
-      const currentTab = useStudioAiStore.getState().leftTab
-      if (currentTab === 'scenes' || currentTab === 'assets') {
-        useStudioAiStore.setState({ leftTab: 'gallery' })
-      }
-    }
-  }, [studioMode])
-
   // Derive canvas generation from activeImageId (focused) or selectedImageId
   const activeId = activeImageId ?? selectedImageId
   const selectedGeneration = generations.find((g) => g.id === activeId) ?? null
@@ -91,15 +78,6 @@ export function StudioLayout() {
     } else {
       window.location.href = '/'
     }
-  }
-
-  const handleVariation = (gen: { prompt: string }) => {
-    if (isGenerating) return
-    sendMessage(gen.prompt, projectId)
-  }
-
-  const handleBackToHome = () => {
-    setStudioMode('home')
   }
 
   if (isLoading) {
@@ -116,53 +94,43 @@ export function StudioLayout() {
       <StudioHeader
         projectName={projectName}
         onClose={handleClose}
-        studioMode={studioMode}
-        onBackToHome={handleBackToHome}
       />
 
-      {/* Mode-based content + always-visible right panel */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left panel - only in editor modes */}
-        {studioMode !== 'home' && (
-          <div className="animate-in fade-in slide-in-from-left-4 duration-500">
-            <StudioLeftPanel projectId={projectId} />
-          </div>
-        )}
+        {/* Left panel — hidden in video mode (the pipeline has its own left panel) */}
+        {studioMode !== 'video' && <StudioLeftPanel projectId={projectId} />}
 
-        {/* Center content - changes per mode */}
-        {studioMode === 'home' && (
-          <div className="flex-1 flex flex-col animate-in fade-in duration-300">
-            <StudioHome projectId={projectId} projectName={projectName} />
-          </div>
-        )}
-
-        {studioMode === 'image' && (
-          <div className="flex-1 flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-500">
-            {activeImageId !== null ? (
-              <div className="flex-1 flex">
-                <StudioCanvas
-                  generation={selectedGeneration}
-                  isGenerating={isGenerating}
-                  onVariation={handleVariation}
-                />
-              </div>
-            ) : (
-              <StudioDashboard />
-            )}
-          </div>
-        )}
-
-        {studioMode === 'video' && (
-          <div className="flex-1 flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          {studioMode === 'video' ? (
             <StudioVideoPipeline projectId={projectId} />
-          </div>
-        )}
+          ) : (
+            <>
+              {/* Floating controls toolbar — model, style, ratio, format */}
+              <div className="shrink-0 px-4 py-2 border-b border-zinc-800/60 bg-zinc-950/80 backdrop-blur-sm">
+                <QuickControls />
+              </div>
 
-        {/* Right panel - only in image mode */}
-        {studioMode === 'image' && (
-          <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-            <StudioRightPanel projectId={projectId} projectName={projectName} />
-          </div>
+              <div className="flex-1 relative overflow-hidden">
+                <ImageBoard projectId={projectId} />
+
+                {showInpaintOverlay && selectedGeneration?.url_salida && (
+                  <InpaintOverlay
+                    generationId={selectedGeneration.id}
+                    imageUrl={selectedGeneration.url_salida}
+                  />
+                )}
+
+                {showOutpaintControls && selectedGeneration && (
+                  <OutpaintControls generationId={selectedGeneration.id} />
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Right panel — AI chat (hidden in video mode, which has its own chat) */}
+        {studioMode !== 'video' && (
+          <StudioRightPanel projectId={projectId} projectName={projectName} />
         )}
       </div>
 
