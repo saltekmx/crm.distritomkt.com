@@ -7,7 +7,7 @@ interface PromptHistoryProps {
 }
 
 export function PromptHistory({ onSelect, onClose }: PromptHistoryProps) {
-  const { promptHistory, loadPromptHistory } = useStudioAiStore()
+  const { promptHistory } = useStudioAiStore()
 
   const handleClear = () => {
     localStorage.removeItem('studio-prompt-history')

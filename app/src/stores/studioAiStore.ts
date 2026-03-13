@@ -1035,7 +1035,7 @@ export const useStudioAiStore = create<StudioAiStore>((set, get) => {
     switchConversation: async (projectId, conversationId) => {
       try {
         const { data } = await studioApi.getConversation(projectId, conversationId)
-        const msgs: HubMessage[] = (data.mensajes || []).map((m: any) => ({
+        const msgs: HubMessage[] = (data.mensajes || []).map((m) => ({
           id: String(m.id),
           role: m.rol === 'user' ? 'user' as const : 'assistant' as const,
           text: m.contenido,

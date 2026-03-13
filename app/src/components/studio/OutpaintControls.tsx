@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { X, Expand, Loader2, ArrowLeft, ArrowRight, ArrowUp, ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useStudioAiStore } from '@/stores/studioAiStore'
@@ -9,8 +9,7 @@ interface OutpaintControlsProps {
 
 interface ExpandFieldProps {
   label: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  icon: any
+  icon: React.ComponentType<{ className?: string }>
   value: number
   onChange: (v: number) => void
 }

@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react'
-import { MessageSquare, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { MessageSquare, PanelRightClose } from 'lucide-react'
 import { useStudioAiStore, MIN_WIDTH, MAX_WIDTH } from '@/stores/studioAiStore'
 import { UnifiedChat } from './tabs/UnifiedChat'
 import { cn } from '@/lib/utils'

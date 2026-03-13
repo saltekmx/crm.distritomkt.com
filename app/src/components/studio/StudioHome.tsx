@@ -4,8 +4,6 @@ import {
   Video,
   Music,
   ArrowRight,
-  Sparkles,
-  FolderOpen,
   BarChart3,
   Shirt,
 } from 'lucide-react'

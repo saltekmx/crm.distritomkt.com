@@ -8,8 +8,6 @@ export type PipelineStatus =
 
 export type UIStage = 'idle' | 'brief' | 'planned' | 'generating' | 'review' | 'export'
 
-const stageOrder: UIStage[] = ['idle', 'brief', 'planned', 'generating', 'review', 'export']
-
 function toUIStage(status: string | null): UIStage {
   if (!status) return 'idle'
   const map: Record<string, UIStage> = {

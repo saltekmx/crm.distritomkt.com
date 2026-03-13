@@ -40,7 +40,6 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
     negativePrompt,
     referenceImageUrl,
     pendingPrompt,
-    leftTab,
     sendMessage,
     clearMessages,
     enhancePrompt,
@@ -192,7 +191,6 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
   const handleUseCurrentImage = () => {
     if (!activeImage?.url_salida) return
     setReferenceImageUrl(activeImage.url_salida)
-    setShowRefImage(true)
     toast.success('Imagen de referencia establecida')
   }
 
@@ -208,7 +206,6 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
       const { data } = await aiApi.uploadFiles([file])
       if (data.length > 0) {
         setReferenceImageUrl(data[0].url)
-        setShowRefImage(true)
         toast.success('Imagen de referencia subida')
       }
     } catch {
