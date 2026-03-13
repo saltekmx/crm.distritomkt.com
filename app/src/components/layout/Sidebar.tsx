@@ -6,6 +6,7 @@ import {
   FolderKanban,
   FileText,
   Image,
+  Truck,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -40,6 +41,7 @@ const menuItems: MenuItem[] = [
   { label: 'Clientes', icon: Building2, path: ROUTES.CLIENTS, permission: 'clientes:read' },
   { label: 'Proyectos', icon: FolderKanban, path: ROUTES.PROJECTS, permission: 'proyectos:read' },
   { label: 'Media', icon: Image, path: ROUTES.MEDIA },
+  { label: 'Proveedores', icon: Truck, path: ROUTES.SUPPLIERS },
   { label: 'Cotizaciones', icon: FileText, path: ROUTES.QUOTES, permission: 'cotizaciones:read' },
   {
     label: 'Administracion',

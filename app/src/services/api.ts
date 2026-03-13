@@ -286,6 +286,8 @@ export const projectsApi = {
     api.patch(`/proyectos/${id}/estado-admin`, { nuevo_estado: nuevoEstado }),
   timeline: (id: number | string, params?: { offset?: number; limit?: number }) =>
     api.get(`/proyectos/${id}/historial`, { params }),
+  generateMaterials: (id: number | string, body?: { incluir_propuesta?: boolean; incluir_pdfs?: boolean; texto_adicional?: string }) =>
+    api.post(`/proyectos/${id}/materiales/generar`, body ?? {}),
 }
 
 // AI endpoints — matches /api/v1/ai/*
@@ -366,6 +368,39 @@ export const aiApi = {
   },
   /** Send a chat message — returns an SSE stream (use fetch, not axios) */
   chatStreamUrl: `${API_BASE}/ai/chat`,
+}
+
+// Suppliers endpoints — matches /api/v1/proveedores/*
+export interface SuppliersListParams {
+  buscar?: string
+  offset?: number
+  limit?: number
+}
+
+export interface SupplierCreateData {
+  nombre: string
+  contacto?: string
+  email?: string
+  telefono?: string
+  whatsapp?: string
+  notas?: string
+}
+
+export interface SupplierUpdateData extends Partial<SupplierCreateData> {
+  [key: string]: unknown
+}
+
+export const proveedoresApi = {
+  list: (params?: SuppliersListParams) =>
+    api.get('/proveedores', { params }),
+  get: (id: number | string) =>
+    api.get(`/proveedores/${id}`),
+  create: (data: SupplierCreateData) =>
+    api.post('/proveedores', data),
+  update: (id: number | string, data: SupplierUpdateData) =>
+    api.patch(`/proveedores/${id}`, data),
+  delete: (id: number | string) =>
+    api.delete(`/proveedores/${id}`),
 }
 
 // RBAC endpoints — matches /api/v1/roles/* and /api/v1/permisos/*

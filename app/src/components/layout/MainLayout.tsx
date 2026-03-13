@@ -64,7 +64,7 @@ export function MainLayout() {
 
       <div
         className={cn(
-          'transition-all duration-300 ease-in-out',
+          'transition-[margin] duration-300 ease-in-out',
           sidebarCollapsed ? 'ml-[72px]' : 'ml-64',
         )}
         style={{ marginRight: aiPanelOpen ? aiPanelWidth : 0 }}

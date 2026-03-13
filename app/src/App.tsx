@@ -14,6 +14,8 @@ import ClientDetailPage from '@/pages/clients/ClientDetailPage'
 import ProjectsPage from '@/pages/projects/ProjectsPage'
 import ProjectFormPage from '@/pages/projects/ProjectFormPage'
 import ProjectDetailPage from '@/pages/projects/ProjectDetailPage'
+import ProveedoresPage from '@/pages/proveedores/ProveedoresPage'
+import ProveedorFormPage from '@/pages/proveedores/ProveedorFormPage'
 import MediaPage from '@/pages/MediaPage'
 import ProfilePage from '@/pages/ProfilePage'
 import RolesPage from '@/pages/admin/RolesPage'
@@ -85,6 +87,14 @@ function App() {
             }
           />
           <Route
+            path="/proyectos/:id/:tab"
+            element={
+              <ProtectedRoute permission="proyectos:read">
+                <ProjectDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/proyectos/:id/editar"
             element={
               <ProtectedRoute permission="proyectos:write">
@@ -92,6 +102,9 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/proveedores" element={<ProveedoresPage />} />
+          <Route path="/proveedores/nuevo" element={<ProveedorFormPage />} />
+          <Route path="/proveedores/:id" element={<ProveedorFormPage />} />
           <Route path="/media" element={<MediaPage />} />
           <Route
             path="/cotizaciones"

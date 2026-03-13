@@ -344,6 +344,15 @@
     color-scheme: light dark;
   }
 
+  /* Select dark mode fix */
+  select {
+    color-scheme: light dark;
+  }
+  select option {
+    background-color: var(--card);
+    color: var(--foreground);
+  }
+
   /* Input Modern */
   .input-modern {
     @apply w-full px-4 py-2.5 rounded-xl border;
@@ -391,6 +400,25 @@
 
 /* ===== UTILITIES ===== */
 @layer utilities {
+  /* Styled thin scrollbar */
+  .scrollbar-styled {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .scrollbar-styled::-webkit-scrollbar {
+    height: 4px;
+  }
+  .scrollbar-styled::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-styled::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 9999px;
+  }
+  .scrollbar-styled::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+  }
+
   /* Animations */
   .animate-in {
     animation: animateIn 0.2s ease-out;
