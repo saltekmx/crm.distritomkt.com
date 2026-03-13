@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Search, Heart, ImageIcon, CheckSquare, Download, Trash2, X, ArrowUpDown, GitBranch } from 'lucide-react'
+import { Search, Heart, ImageIcon, CheckSquare, Download, Trash2, X, ArrowUpDown, GitBranch, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStudioStore } from '@/stores/studioStore'
 import { useStudioAiStore } from '@/stores/studioAiStore'
@@ -12,6 +12,7 @@ type GalleryFilter = 'all' | 'favorites' | 'exported'
 type GroupMode = 'flat' | 'version'
 
 export function GalleryTab() {
+  const isGenerating = useStudioAiStore((s) => s.isGenerating)
   const generations = useStudioStore((s) => s.generations)
   const versionMap = useStudioStore((s) => s.versionMap)
   const selectedImageId = useStudioAiStore((s) => s.selectedImageId)
@@ -266,7 +267,23 @@ export function GalleryTab() {
 
       {/* Grid */}
       <div className="flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
-        {sorted.length === 0 ? (
+        {/* Generating skeleton — shown at top while a generation is in flight */}
+        {isGenerating && (
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <div className="rounded-lg overflow-hidden bg-zinc-800 border border-violet-500/30 animate-pulse">
+              <div className="aspect-square bg-zinc-700/60 flex flex-col items-center justify-center gap-2">
+                <Loader2 className="h-5 w-5 text-violet-400 animate-spin" />
+                <span className="text-[10px] text-violet-400 font-medium">Generando...</span>
+              </div>
+              <div className="p-2 space-y-1.5">
+                <div className="h-2 bg-zinc-700/60 rounded w-full" />
+                <div className="h-2 bg-zinc-700/60 rounded w-2/3" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {sorted.length === 0 && !isGenerating ? (
           <div className="flex flex-col items-center justify-center h-40 text-center">
             <ImageIcon className="h-8 w-8 text-zinc-700 mb-2" />
             <p className="text-xs text-zinc-600">
