@@ -7,6 +7,7 @@ import {
   Sparkles,
   FolderOpen,
   BarChart3,
+  Shirt,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -176,11 +177,11 @@ export function StudioHome({ projectId, projectName }: StudioHomeProps) {
               onClick={() => handleQuickAction('Crear Videos')}
             />
             <QuickActionCard
-              icon={FolderOpen}
-              title="Ver Galeria"
-              description="Explora tus assets"
+              icon={Shirt}
+              title="Probador Virtual"
+              description="Prueba ropa con IA"
               color="emerald"
-              onClick={() => handleQuickAction('Ver Galeria')}
+              onClick={() => setStudioMode('try-on')}
             />
             <QuickActionCard
               icon={BarChart3}

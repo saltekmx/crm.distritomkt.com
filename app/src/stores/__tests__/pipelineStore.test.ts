@@ -35,7 +35,7 @@ function makeScene(overrides: Partial<PipelineScene> = {}): PipelineScene {
     pipeline_id: 10,
     orden: 1,
     descripcion: 'Test scene',
-    veo_prompt: 'A cinematic shot',
+    video_prompt: 'A cinematic shot',
     historial_prompts: [],
     reference_asset_id: null,
     video_url: null,
@@ -147,7 +147,7 @@ describe('pipelineStore', () => {
 
     expect(pipelineApi.generate).toHaveBeenCalledWith(10, {
       scene_ids: [1, 2],
-      quality: 'veo-3.1-fast',
+      quality: 'vidu/q3',
     })
     expect(usePipelineStore.getState().currentStage).toBe('generating')
   })
@@ -354,9 +354,9 @@ describe('pipelineStore', () => {
 
     await usePipelineStore.getState().revertPrompt(1, 'old prompt text')
 
-    expect(pipelineApi.updateScene).toHaveBeenCalledWith(1, { veo_prompt: 'old prompt text' })
+    expect(pipelineApi.updateScene).toHaveBeenCalledWith(1, { video_prompt: 'old prompt text' })
     const scene = usePipelineStore.getState().pipeline!.escenas.find((s) => s.id === 1)
-    expect(scene?.veo_prompt).toBe('old prompt text')
+    expect(scene?.video_prompt).toBe('old prompt text')
     expect(scene?.estado).toBe('pending')
   })
 

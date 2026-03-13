@@ -166,7 +166,7 @@ function PromptHistoryModal({
         <div className="flex-1 overflow-y-auto -mx-6 px-0 scrollbar-thin">
           {sortedHistory.map((entry, idx) => {
             const prompt = (entry.prompt as string) ?? ''
-            const isCurrentPrompt = prompt === scene.veo_prompt
+            const isCurrentPrompt = prompt === scene.video_prompt
 
             return (
               <PromptHistoryEntry
@@ -246,7 +246,7 @@ export function PromptHistoryViewer({ scene }: Props) {
             <div className="max-h-96 space-y-0 overflow-y-auto">
               {inlineEntries.map((entry, idx) => {
                 const prompt = (entry.prompt as string) ?? ''
-                const isCurrentPrompt = prompt === scene.veo_prompt
+                const isCurrentPrompt = prompt === scene.video_prompt
 
                 return (
                   <PromptHistoryEntry

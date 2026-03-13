@@ -45,7 +45,18 @@ interface PipelineStore {
   generateScenes: (sceneIds?: number[], quality?: string) => Promise<void>
   submitRevision: (sceneId: number, feedback: string) => Promise<void>
   approveScene: (sceneId: number) => Promise<void>
-  exportPipeline: (format?: string) => Promise<void>
+  exportPipeline: (config?: {
+    format?: string
+    resolution?: string
+    fps?: number
+    quality_preset?: string
+    include_scene_metadata?: boolean
+    scene_titles?: boolean
+    client_name_in_filename?: boolean
+    include_scene_ids?: number[] | null
+  }) => Promise<void>
+  lockBrief: (pipelineId: number) => Promise<void>
+  unlockBrief: (pipelineId: number) => Promise<void>
   setActiveScene: (sceneId: number) => void
   setStage: (stage: UIStage) => void
   canGoToStage: (stage: UIStage) => boolean
@@ -54,10 +65,10 @@ interface PipelineStore {
   setExportProgress: (progress: { step: number; total: number } | null) => void
   setExportComplete: (mediaIds: number[]) => void
   updateScene: (sceneId: number, updates: Partial<PipelineScene>) => void
-  updateSceneRemote: (sceneId: number, data: Partial<{ description: string; veo_prompt: string; duration_sec: number; aspect_ratio: string }>) => Promise<void>
+  updateSceneRemote: (sceneId: number, data: Partial<{ description: string; video_prompt: string; duration_sec: number; aspect_ratio: string }>) => Promise<void>
   updateSceneLocally: (sceneId: number, updates: Partial<PipelineScene>) => void
   revertPrompt: (sceneId: number, historicalPrompt: string) => Promise<void>
-  addScene: (pipelineId: number, data: { description: string; veo_prompt?: string; duration_sec?: number; aspect_ratio?: string }) => Promise<void>
+  addScene: (pipelineId: number, data: { description: string; video_prompt?: string; duration_sec?: number; aspect_ratio?: string }) => Promise<void>
   deleteScene: (sceneId: number) => Promise<void>
   duplicateScene: (sceneId: number) => Promise<void>
   reorderScenes: (sceneIds: number[]) => Promise<void>
@@ -176,12 +187,12 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     }))
   },
 
-  exportPipeline: async (format = 'mp4') => {
+  exportPipeline: async (config = {}) => {
     const { pipeline } = get()
     if (!pipeline) return
     set({ isLoading: true, exportProgress: null, exportedMediaIds: [], error: null })
     try {
-      await pipelineApi.exportPipeline(pipeline.id, { format })
+      await pipelineApi.exportPipeline(pipeline.id, { format: 'mp4', ...config })
       set((state) => ({
         currentStage: 'export',
         pipeline: state.pipeline ? { ...state.pipeline, estado: 'exporting' } : null,
@@ -192,6 +203,16 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
       set({ isLoading: false, error: msg })
       toast.error('Error al iniciar la exportación')
     }
+  },
+
+  lockBrief: async (pipelineId) => {
+    await pipelineApi.lockBrief(pipelineId)
+    set((s) => ({ pipeline: s.pipeline ? { ...s.pipeline, brief_locked: true } : s.pipeline }))
+  },
+
+  unlockBrief: async (pipelineId) => {
+    await pipelineApi.unlockBrief(pipelineId)
+    set((s) => ({ pipeline: s.pipeline ? { ...s.pipeline, brief_locked: false } : s.pipeline }))
   },
 
   setActiveScene: (sceneId) => set({ activeSceneId: sceneId }),
@@ -271,14 +292,14 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
 
   revertPrompt: async (sceneId, historicalPrompt) => {
     try {
-      await pipelineApi.updateScene(sceneId, { veo_prompt: historicalPrompt })
+      await pipelineApi.updateScene(sceneId, { video_prompt: historicalPrompt })
       set((state) => ({
         pipeline: state.pipeline
           ? {
               ...state.pipeline,
               escenas: state.pipeline.escenas.map((s) =>
                 s.id === sceneId
-                  ? { ...s, veo_prompt: historicalPrompt, estado: 'pending' as const }
+                  ? { ...s, video_prompt: historicalPrompt, estado: 'pending' as const }
                   : s
               ),
             }

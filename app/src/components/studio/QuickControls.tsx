@@ -75,10 +75,15 @@ export function QuickControls() {
           >
             {availableModels.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.name} ({m.price_hint})
+                {m.name} ({m.price_hint}){m.img2img_mode ? ' ✦img2img' : ''}
               </option>
             ))}
           </select>
+          {currentModelInfo?.img2img_mode && (
+            <span className="text-xs text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded font-medium">
+              img2img
+            </span>
+          )}
         </div>
       )}
 

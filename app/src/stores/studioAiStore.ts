@@ -62,7 +62,7 @@ interface StudioAiStore {
 
   // Model / batch / format
   selectedModel: string
-  availableModels: Array<{ id: string; name: string; api_type: string; max_batch: number; supports_editing: boolean; aspect_ratios: string[]; price_hint: string; dimensions: Record<string, string> | null }>
+  availableModels: Array<{ id: string; name: string; api_type: string; max_batch: number; supports_editing: boolean; img2img_mode: string | null; aspect_ratios: string[]; price_hint: string; dimensions: Record<string, string> | null }>
   batchSize: number
   outputFormat: string
   isDescribing: boolean

@@ -52,6 +52,11 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
     consumePendingPrompt,
   } = useStudioAiStore()
 
+  const availableModels = useStudioAiStore((s) => s.availableModels)
+  const selectedModel = useStudioAiStore((s) => s.selectedModel)
+  const selectedModelInfo = availableModels.find((m) => m.id === selectedModel)
+  const modelSupportsImg2img = (selectedModelInfo?.supports_editing ?? false) && !!selectedModelInfo?.img2img_mode
+
   const generations = useStudioStore((s) => s.generations)
   const activeImage = generations.find((g) => g.id === selectedImageId) ?? null
 
@@ -68,7 +73,7 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
   const [showHistory, setShowHistory] = useState(false)
   const [showSaveTemplate, setShowSaveTemplate] = useState(false)
   const [showLoadTemplates, setShowLoadTemplates] = useState(false)
-  const [showRefImage, setShowRefImage] = useState(!!referenceImageUrl)
+  const [isRefDragOver, setIsRefDragOver] = useState(false)
   const [isSubmittingRevision, setIsSubmittingRevision] = useState(false)
   const [showPromptBuilder, setShowPromptBuilder] = useState(false)
   const [pbSujeto, setPbSujeto] = useState('')
@@ -215,6 +220,35 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
     }
   }
 
+  const handleRefDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsRefDragOver(false)
+
+    // Gallery image dragged in
+    const imageUrl = e.dataTransfer.getData('application/x-studio-image') || e.dataTransfer.getData('text/plain')
+    if (imageUrl && imageUrl.startsWith('http')) {
+      setReferenceImageUrl(imageUrl)
+      return
+    }
+
+    // File dropped from disk
+    const file = e.dataTransfer.files?.[0]
+    if (!file || !file.type.startsWith('image/')) return
+    setIsUploadingRef(true)
+    try {
+      const { data } = await aiApi.uploadFiles([file])
+      if (data.length > 0) {
+        setReferenceImageUrl(data[0].url)
+        toast.success('Imagen de referencia subida')
+      }
+    } catch {
+      toast.error('Error al subir imagen')
+    } finally {
+      setIsUploadingRef(false)
+    }
+  }
+
   const handleHistorySelect = (prompt: string) => {
     setInput(prompt)
     setShowHistory(false)
@@ -272,11 +306,11 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
                 : 'Sin descripcion'}
             </span>
           </div>
-          {activeScene.veo_prompt && (
+          {activeScene.video_prompt && (
             <div className="text-zinc-500 line-clamp-2 font-mono text-[11px]">
-              {activeScene.veo_prompt.length > 120
-                ? activeScene.veo_prompt.slice(0, 120) + '...'
-                : activeScene.veo_prompt}
+              {activeScene.video_prompt.length > 120
+                ? activeScene.video_prompt.slice(0, 120) + '...'
+                : activeScene.video_prompt}
             </div>
           )}
         </div>
@@ -294,64 +328,65 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
         />
       )}
 
-      {/* Reference Image Section (image mode only) */}
-      {!isVideoMode && (showRefImage || referenceImageUrl) && (
-        <div className="border-b border-zinc-800 px-4 py-2.5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-zinc-400">Imagen de referencia</span>
-            <button
-              onClick={() => {
-                setReferenceImageUrl(null)
-                setShowRefImage(false)
-              }}
-              className="p-0.5 rounded text-zinc-600 hover:text-zinc-400 transition-colors"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </div>
+      {/* Reference Image — always visible in image mode */}
+      {!isVideoMode && (
+        <div className="border-b border-zinc-800 px-3 py-2">
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
           {referenceImageUrl ? (
             <div className="flex items-center gap-2">
-              <div className="w-12 h-12 rounded-lg overflow-hidden bg-zinc-800 shrink-0">
+              <div className="w-10 h-10 rounded-lg overflow-hidden bg-zinc-800 shrink-0">
                 <img src={referenceImageUrl} alt="" className="w-full h-full object-cover" />
               </div>
-              <span className="text-[11px] text-zinc-500 truncate flex-1">Referencia activa</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-zinc-400 font-medium">Referencia img2img</p>
+                {!modelSupportsImg2img && (
+                  <p className="text-[10px] text-amber-500">Modelo actual no soporta img2img — cambia a FLUX Dev</p>
+                )}
+              </div>
               <button
                 onClick={() => setReferenceImageUrl(null)}
-                className="p-1 rounded text-zinc-600 hover:text-zinc-400 transition-colors"
+                className="p-1 rounded text-zinc-600 hover:text-zinc-400 transition-colors shrink-0"
                 title="Quitar referencia"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
+          ) : modelSupportsImg2img ? (
+            <div
+              onDrop={handleRefDrop}
+              onDragOver={(e) => { e.preventDefault(); setIsRefDragOver(true) }}
+              onDragEnter={(e) => { e.preventDefault(); setIsRefDragOver(true) }}
+              onDragLeave={(e) => { e.preventDefault(); setIsRefDragOver(false) }}
+              className={cn(
+                'flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 transition-all cursor-pointer',
+                isRefDragOver
+                  ? 'border-violet-500/60 bg-violet-500/5'
+                  : 'border-zinc-700 hover:border-zinc-600'
+              )}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {isUploadingRef ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-500 shrink-0" />
+              ) : (
+                <Upload className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+              )}
+              <span className="text-xs text-zinc-500">
+                {isRefDragOver ? 'Suelta aquí' : 'Referencia img2img — arrastra o haz clic'}
+              </span>
+              {activeImage?.url_salida && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleUseCurrentImage() }}
+                  className="ml-auto text-[10px] text-violet-400 hover:text-violet-300 whitespace-nowrap shrink-0"
+                >
+                  Usar actual
+                </button>
+              )}
+            </div>
           ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={handleUseCurrentImage}
-                disabled={!activeImage?.url_salida}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs border border-dashed border-zinc-700 text-zinc-500 hover:border-violet-500/40 hover:text-zinc-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ImageIcon className="h-3.5 w-3.5" />
-                Usar imagen actual
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingRef}
-                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs border border-dashed border-zinc-700 text-zinc-500 hover:border-violet-500/40 hover:text-zinc-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {isUploadingRef ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Upload className="h-3.5 w-3.5" />
-                )}
-                Subir
-              </button>
+            <div className="flex items-center gap-2 rounded-lg border border-dashed border-zinc-800 px-3 py-2 opacity-50 cursor-not-allowed">
+              <Upload className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+              <span className="text-xs text-zinc-600">img2img — solo disponible con FLUX Dev</span>
             </div>
           )}
         </div>
@@ -442,15 +477,6 @@ export function GenerateTab({ projectId }: GenerateTabProps) {
                   className="w-full resize-none rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
                 />
               </div>
-              {!showRefImage && !referenceImageUrl && (
-                <button
-                  onClick={() => setShowRefImage(true)}
-                  className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-400 transition-colors"
-                >
-                  <ImageIcon className="h-3 w-3" />
-                  Agregar imagen de referencia
-                </button>
-              )}
             </div>
           )}
         </div>

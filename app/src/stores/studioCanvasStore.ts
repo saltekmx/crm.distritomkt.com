@@ -55,6 +55,8 @@ interface DashboardState {
   dashboardZoom: number
   dashboardPan: { x: number; y: number }
   imagePositions: Map<number, { x: number; y: number }>
+  /** IDs of images currently placed on the board */
+  boardImageIds: Set<number>
 }
 
 // ─── Store Interface ────────────────────────────────────────────────────────
@@ -86,6 +88,11 @@ interface StudioCanvasStore extends DashboardState {
   setDashboardPan: (pan: { x: number; y: number }) => void
   setImagePosition: (imageId: number, pos: { x: number; y: number }) => void
   autoArrangeImages: (imageIds: number[]) => void
+
+  // Board membership
+  addToBoard: (imageId: number) => void
+  removeFromBoard: (imageId: number) => void
+  clearBoard: () => void
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -185,6 +192,7 @@ export const useStudioCanvasStore = create<StudioCanvasStore>((set, get) => ({
   dashboardZoom: 1,
   dashboardPan: { x: 0, y: 0 },
   imagePositions: new Map(),
+  boardImageIds: new Set(),
 
   getImageState: (imageId) => {
     return get().imageStates.get(imageId) ?? createDefaultState()
@@ -297,6 +305,7 @@ export const useStudioCanvasStore = create<StudioCanvasStore>((set, get) => ({
       dashboardZoom: 1,
       dashboardPan: { x: 0, y: 0 },
       imagePositions: new Map(),
+      boardImageIds: new Set(),
     })
   },
 
@@ -311,6 +320,38 @@ export const useStudioCanvasStore = create<StudioCanvasStore>((set, get) => ({
       return { imagePositions: next }
     })
   },
+
+  addToBoard: (imageId) => {
+    set((s) => {
+      if (s.boardImageIds.has(imageId)) return {}
+      const next = new Set(s.boardImageIds)
+      next.add(imageId)
+      // Assign a position next to existing cards if none yet
+      if (!s.imagePositions.has(imageId)) {
+        const cols = 4
+        const cardW = 240
+        const cardH = 280
+        const gap = 40
+        const idx = next.size - 1
+        const col = idx % cols
+        const row = Math.floor(idx / cols)
+        const positions = new Map(s.imagePositions)
+        positions.set(imageId, { x: col * (cardW + gap), y: row * (cardH + gap) })
+        return { boardImageIds: next, imagePositions: positions }
+      }
+      return { boardImageIds: next }
+    })
+  },
+
+  removeFromBoard: (imageId) => {
+    set((s) => {
+      const next = new Set(s.boardImageIds)
+      next.delete(imageId)
+      return { boardImageIds: next }
+    })
+  },
+
+  clearBoard: () => set({ boardImageIds: new Set() }),
 
   autoArrangeImages: (imageIds) => {
     const cols = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(imageIds.length))))

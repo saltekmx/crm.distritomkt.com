@@ -299,7 +299,7 @@ function SceneMetadata({ scene }: { scene: PipelineScene }) {
           <div className="col-span-2">
             <span className="text-xs text-muted-foreground">Prompt</span>
             <p className="mt-1 rounded-lg bg-muted/50 p-2.5 font-mono text-xs leading-relaxed">
-              {scene.veo_prompt || 'Sin prompt'}
+              {scene.video_prompt || 'Sin prompt'}
             </p>
           </div>
         </div>
@@ -317,7 +317,7 @@ function DirectPromptEditor({
   scene: PipelineScene
   onClose: () => void
 }) {
-  const [promptText, setPromptText] = useState(scene.veo_prompt ?? '')
+  const [promptText, setPromptText] = useState(scene.video_prompt ?? '')
   const [saving, setSaving] = useState(false)
   const { updateSceneRemote, updateSceneLocally, generateSingleScene, pipeline } =
     usePipelineStore()
@@ -325,8 +325,8 @@ function DirectPromptEditor({
   const handleSave = async () => {
     setSaving(true)
     try {
-      await updateSceneRemote(scene.id, { veo_prompt: promptText })
-      updateSceneLocally(scene.id, { veo_prompt: promptText })
+      await updateSceneRemote(scene.id, { video_prompt: promptText })
+      updateSceneLocally(scene.id, { video_prompt: promptText })
       toast.success('Prompt actualizado')
       onClose()
     } finally {
@@ -337,8 +337,8 @@ function DirectPromptEditor({
   const handleSaveAndRegenerate = async () => {
     setSaving(true)
     try {
-      await updateSceneRemote(scene.id, { veo_prompt: promptText })
-      updateSceneLocally(scene.id, { veo_prompt: promptText, estado: 'generating' })
+      await updateSceneRemote(scene.id, { video_prompt: promptText })
+      updateSceneLocally(scene.id, { video_prompt: promptText, estado: 'generating' })
       if (pipeline) {
         await generateSingleScene(scene.id)
       }
@@ -377,7 +377,7 @@ function DirectPromptEditor({
         <Button
           size="sm"
           onClick={handleSave}
-          disabled={saving || promptText === scene.veo_prompt}
+          disabled={saving || promptText === scene.video_prompt}
           className="gap-1.5"
         >
           <Save className="h-3.5 w-3.5" />
@@ -525,7 +525,7 @@ export function ReviewPanel() {
                   )}
                 </div>
                 <p className="rounded-lg bg-muted/50 p-3 font-mono text-xs leading-relaxed">
-                  {activeScene.veo_prompt}
+                  {activeScene.video_prompt}
                 </p>
               </>
             )}

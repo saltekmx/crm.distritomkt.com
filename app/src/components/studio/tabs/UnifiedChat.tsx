@@ -1198,7 +1198,7 @@ function ImageContextBar({ generation }: { generation: StudioGeneration }) {
 function VideoContextBar({
   scene,
 }: {
-  scene: { orden: number; descripcion?: string | null; veo_prompt?: string | null; estado: string }
+  scene: { orden: number; descripcion?: string | null; video_prompt?: string | null; estado: string }
 }) {
   return (
     <div className="px-3 py-2 bg-zinc-800/50 border-b border-zinc-700 shrink-0">
@@ -1214,11 +1214,11 @@ function VideoContextBar({
             : 'Sin descripcion'}
         </span>
       </div>
-      {scene.veo_prompt && (
+      {scene.video_prompt && (
         <div className="text-zinc-500 line-clamp-2 font-mono text-[10px]">
-          {scene.veo_prompt.length > 100
-            ? scene.veo_prompt.slice(0, 100) + '...'
-            : scene.veo_prompt}
+          {scene.video_prompt.length > 100
+            ? scene.video_prompt.slice(0, 100) + '...'
+            : scene.video_prompt}
         </div>
       )}
     </div>

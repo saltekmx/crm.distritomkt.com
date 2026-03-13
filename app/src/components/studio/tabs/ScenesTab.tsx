@@ -32,7 +32,7 @@ export function ScenesTab() {
     if (!pipeline) return
     addScene(pipeline.id, {
       description: '',
-      veo_prompt: '',
+      video_prompt: '',
       duration_sec: 6,
       aspect_ratio: '16:9',
     })

@@ -51,7 +51,7 @@ function makeScene(overrides: Partial<PipelineScene> = {}): PipelineScene {
     pipeline_id: 100,
     orden: 1,
     descripcion: 'Test scene',
-    veo_prompt: 'A cinematic shot',
+    video_prompt: 'A cinematic shot',
     historial_prompts: [],
     reference_asset_id: null,
     video_url: null,

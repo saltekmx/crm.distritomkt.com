@@ -498,7 +498,7 @@ function ReviewStageContent({
                   typeof entry === 'string'
                     ? entry
                     : (entry as Record<string, unknown>).prompt ??
-                      (entry as Record<string, unknown>).veo_prompt ??
+                      (entry as Record<string, unknown>).video_prompt ??
                       JSON.stringify(entry)
 
                 return (

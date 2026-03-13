@@ -4,15 +4,16 @@ import { Loader2 } from 'lucide-react'
 import { Toaster } from 'sonner'
 import { useStudioStore } from '@/stores/studioStore'
 import { useStudioAiStore } from '@/stores/studioAiStore'
+import { useVideoGenerationStore } from '@/stores/videoGenerationStore'
 import { projectsApi } from '@/services/api'
 import { StudioHeader } from './StudioHeader'
 import { StudioLeftPanel } from './StudioLeftPanel'
-import { StudioRightPanel } from './StudioRightPanel'
 import { ImageBoard } from './ImageBoard'
 import { InpaintOverlay } from './InpaintOverlay'
 import { OutpaintControls } from './OutpaintControls'
 import { QuickControls } from './QuickControls'
 import { StudioVideoPipeline } from './StudioVideoPipeline'
+import { VideoQuickGenerateCanvas } from './VideoQuickGenerateCanvas'
 
 export function StudioLayout() {
   const { id } = useParams<{ id: string }>()
@@ -29,6 +30,8 @@ export function StudioLayout() {
     studioMode,
     reset: resetAi,
   } = useStudioAiStore()
+
+  const { videoLeftTab } = useVideoGenerationStore()
 
   const [projectName, setProjectName] = useState('')
 
@@ -97,12 +100,16 @@ export function StudioLayout() {
       />
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Left panel — hidden in video mode (the pipeline has its own left panel) */}
-        {studioMode !== 'video' && <StudioLeftPanel projectId={projectId} />}
+        {/* Left panel — image tabs in image mode, pipeline versions list in video mode */}
+        <StudioLeftPanel projectId={projectId} mode={studioMode === 'video' ? 'video' : 'image'} />
 
         <div className="flex-1 flex flex-col overflow-hidden relative">
           {studioMode === 'video' ? (
-            <StudioVideoPipeline projectId={projectId} />
+            videoLeftTab === 'generate' ? (
+              <VideoQuickGenerateCanvas projectId={projectId} />
+            ) : (
+              <StudioVideoPipeline projectId={projectId} />
+            )
           ) : (
             <>
               {/* Floating controls toolbar — model, style, ratio, format */}
@@ -128,10 +135,6 @@ export function StudioLayout() {
           )}
         </div>
 
-        {/* Right panel — AI chat (hidden in video mode, which has its own chat) */}
-        {studioMode !== 'video' && (
-          <StudioRightPanel projectId={projectId} projectName={projectName} />
-        )}
       </div>
 
       <Toaster position="bottom-right" richColors closeButton theme="dark" />

@@ -456,11 +456,21 @@ export interface StudioTemplate {
 
 // ── Pipeline types ───────────────────────────────────────────────────────────
 
+export interface PipelineSceneVideoVersion {
+  iteration: number
+  video_url: string
+  video_key?: string
+  quality: string
+  duration_sec: number
+  created_at: string
+}
+
 export interface PipelineScene {
   id: number
   pipeline_id: number
   orden: number
   descripcion: string | null
+  video_prompt: string | null
   veo_prompt: string | null
   historial_prompts: Array<Record<string, unknown>>
   reference_asset_id: number | null
@@ -473,6 +483,7 @@ export interface PipelineScene {
   estado: 'pending' | 'generating' | 'complete' | 'failed' | 'approved'
   elapsed_sec?: number
   actualizado_en: string
+  video_versions?: PipelineSceneVideoVersion[]
 }
 
 export interface Pipeline {
@@ -480,6 +491,7 @@ export interface Pipeline {
   proyecto_id: number
   estado: string
   brief_snapshot: string | null
+  brief_locked: boolean
   quality: string
   guia_estilo: Record<string, unknown> | null
   escenas: PipelineScene[]
@@ -709,14 +721,29 @@ export const pipelineApi = {
   approveScene: (sceneId: number) =>
     api.patch(`/pipeline/scenes/${sceneId}/approve`),
 
-  exportPipeline: (pipelineId: number, data: { format?: string }) =>
+  exportPipeline: (pipelineId: number, data: {
+    format?: string
+    resolution?: string
+    fps?: number
+    quality_preset?: string
+    include_scene_metadata?: boolean
+    scene_titles?: boolean
+    client_name_in_filename?: boolean
+    include_scene_ids?: number[] | null
+  }) =>
     api.post(`/pipeline/${pipelineId}/export`, data),
 
+  lockBrief: (pipelineId: number) =>
+    api.patch(`/pipeline/${pipelineId}/lock-brief`),
+
+  unlockBrief: (pipelineId: number) =>
+    api.patch(`/pipeline/${pipelineId}/unlock-brief`),
+
   // Scene CRUD
-  updateScene: (sceneId: number, data: Partial<{ description: string; veo_prompt: string; duration_sec: number; aspect_ratio: string; reference_asset_id: number | null }>) =>
+  updateScene: (sceneId: number, data: Partial<{ description: string; video_prompt: string; duration_sec: number; aspect_ratio: string; reference_asset_id: number | null }>) =>
     api.patch<PipelineScene>(`/pipeline/scenes/${sceneId}`, data),
 
-  addScene: (pipelineId: number, data: { description: string; veo_prompt?: string; duration_sec?: number; aspect_ratio?: string }) =>
+  addScene: (pipelineId: number, data: { description: string; video_prompt?: string; duration_sec?: number; aspect_ratio?: string }) =>
     api.post<PipelineScene>(`/pipeline/${pipelineId}/scenes`, data),
 
   deleteScene: (sceneId: number) =>
@@ -772,6 +799,60 @@ export const pipelineApi = {
   // WebSocket URL (for real-time updates)
   wsUrl: (pipelineId: number) =>
     `${API_URL}/api/v1/pipeline/ws/${pipelineId}`,
+}
+
+// ── Studio Video Generation types ────────────────────────────────────────────
+
+export interface StudioVideoGeneration {
+  id: number
+  proyecto_id: number
+  feature: 'text2video' | 'image2video' | 'video2video' | 'motion' | 'realism'
+  prompt: string | null
+  model: string
+  duracion_seg: number
+  aspect_ratio: string
+  source_image_url: string | null
+  source_video_url: string | null
+  estado: 'pending' | 'generating' | 'complete' | 'failed'
+  url_video: string | null
+  url_thumbnail: string | null
+  mensaje_error: string | null
+  is_favorito: boolean
+  creado_en: string
+  actualizado_en: string
+}
+
+export const videoGenApi = {
+  generate: (data: {
+    project_id: number
+    feature: string
+    prompt: string
+    model: string
+    duration_sec: number
+    aspect_ratio: string
+    source_image_url?: string | null
+    source_video_url?: string | null
+  }) => api.post<StudioVideoGeneration>('/studio/video/generate', data),
+
+  list: (projectId: number, feature?: string) =>
+    api.get<StudioVideoGeneration[]>('/studio/video/generations', {
+      params: { project_id: projectId, ...(feature ? { feature } : {}) },
+    }),
+
+  get: (genId: number) =>
+    api.get<StudioVideoGeneration>(`/studio/video/generations/${genId}`),
+
+  delete: (genId: number) =>
+    api.delete(`/studio/video/generations/${genId}`),
+
+  toggleFavorite: (genId: number) =>
+    api.patch<{ id: number; is_favorito: boolean }>(`/studio/video/generations/${genId}/favorite`),
+
+  wsUrl: (projectId: number) => {
+    const base = (import.meta.env.VITE_API_URL || 'http://localhost:8000')
+      .replace(/^http/, 'ws').replace(/\/api\/v1$/, '')
+    return `${base}/api/v1/studio/video/ws/${projectId}`
+  },
 }
 
 export default api

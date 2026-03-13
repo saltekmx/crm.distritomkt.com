@@ -85,6 +85,7 @@ export function ScenePlanView({ onReanalyze }: Props) {
   const scenes = pipeline.escenas
   const sceneCount = scenes.length
   const canAddScene = sceneCount < MAX_SCENES
+  const pendingCount = scenes.filter((s) => s.estado === 'pending').length
 
   const handleGenerateAll = () => {
     generateScenes(undefined, quality)
@@ -94,7 +95,7 @@ export function ScenePlanView({ onReanalyze }: Props) {
     if (!canAddScene) return
     addScene(pipeline.id, {
       description: '',
-      veo_prompt: '',
+      video_prompt: '',
       duration_sec: 6,
       aspect_ratio: '16:9',
     })
@@ -171,8 +172,8 @@ export function ScenePlanView({ onReanalyze }: Props) {
               const apiField =
                 field === 'descripcion'
                   ? 'description'
-                  : field === 'veo_prompt'
-                    ? 'veo_prompt'
+                  : field === 'video_prompt'
+                    ? 'video_prompt'
                     : field === 'duracion_seg'
                       ? 'duration_sec'
                       : 'aspect_ratio'
@@ -227,11 +228,11 @@ export function ScenePlanView({ onReanalyze }: Props) {
       </div>
 
       {/* Generate Button */}
-      <div className="flex justify-center pt-2">
+      <div className="flex flex-col items-center gap-1.5 pt-2">
         <Button
           size="lg"
           onClick={handleGenerateAll}
-          disabled={isLoading || scenes.length === 0}
+          disabled={isLoading || pendingCount === 0}
           className="gap-2"
         >
           {isLoading ? (
@@ -239,8 +240,13 @@ export function ScenePlanView({ onReanalyze }: Props) {
           ) : (
             <Play className="h-5 w-5" />
           )}
-          Generar Todos los Videos
+          Generar Videos
         </Button>
+        {pendingCount > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {pendingCount} en cola · se procesan 3 en paralelo
+          </p>
+        )}
       </div>
     </div>
   )
@@ -298,7 +304,7 @@ function EditableSceneCard({
     [onUpdate, onSave]
   )
 
-  const promptLength = scene.veo_prompt?.length ?? 0
+  const promptLength = scene.video_prompt?.length ?? 0
 
   return (
     <div className="card-modern overflow-hidden border border-zinc-700/50 transition-all hover:border-zinc-600/50">
@@ -395,12 +401,12 @@ function EditableSceneCard({
         {/* Veo Prompt */}
         <div>
           <div className="mb-1.5 flex items-center justify-between">
-            <label className="text-xs font-medium text-muted-foreground">Prompt de Veo</label>
+            <label className="text-xs font-medium text-muted-foreground">Prompt de Video</label>
             <span className="text-xs text-muted-foreground/60">{promptLength} caracteres</span>
           </div>
           <Textarea
-            value={scene.veo_prompt ?? ''}
-            onChange={(e) => handleFieldChange('veo_prompt', e.target.value)}
+            value={scene.video_prompt ?? ''}
+            onChange={(e) => handleFieldChange('video_prompt', e.target.value)}
             placeholder="Prompt para la generacion del video..."
             className="min-h-[100px] resize-none bg-zinc-800/50 font-mono text-xs leading-relaxed"
             rows={4}

@@ -3,6 +3,7 @@ import { Search, Heart, ImageIcon, CheckSquare, Download, Trash2, X, ArrowUpDown
 import { cn } from '@/lib/utils'
 import { useStudioStore } from '@/stores/studioStore'
 import { useStudioAiStore } from '@/stores/studioAiStore'
+import { useStudioCanvasStore } from '@/stores/studioCanvasStore'
 import { studioApi } from '@/services/api'
 import type { StudioGeneration } from '@/services/api'
 import { toast } from 'sonner'
@@ -24,6 +25,8 @@ export function GalleryTab() {
   const [isDownloading, setIsDownloading] = useState(false)
   const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'favorites'>('recent')
   const [groupMode, setGroupMode] = useState<GroupMode>('flat')
+
+  const addToBoard = useStudioCanvasStore((s) => s.addToBoard)
 
   const bulkMode = selectedImageIds.size > 0
 
@@ -106,6 +109,7 @@ export function GalleryTab() {
     if (e.ctrlKey || e.metaKey || e.shiftKey) {
       toggleImageSelection(gen.id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })
     } else {
+      addToBoard(gen.id)
       setSelectedImageId(gen.id)
     }
   }

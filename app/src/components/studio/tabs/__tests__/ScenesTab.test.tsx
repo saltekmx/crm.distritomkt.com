@@ -18,7 +18,7 @@ function makeScene(overrides: Partial<PipelineScene> = {}): PipelineScene {
     pipeline_id: 100,
     orden: 1,
     descripcion: 'Test scene',
-    veo_prompt: 'A prompt',
+    video_prompt: 'A prompt',
     historial_prompts: [],
     reference_asset_id: null,
     video_url: null,
@@ -179,7 +179,7 @@ describe('ScenesTab', () => {
     await user.click(addBtn)
     expect(mockAddScene).toHaveBeenCalledWith(100, {
       description: '',
-      veo_prompt: '',
+      video_prompt: '',
       duration_sec: 6,
       aspect_ratio: '16:9',
     })
