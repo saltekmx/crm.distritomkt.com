@@ -621,6 +621,32 @@ export const studioApi = {
 
   deleteConversation: (projectId: number, conversationId: number) =>
     api.delete(`/studio/conversations/${projectId}/${conversationId}`),
+
+  // Virtual Try-On
+  submitTryOn: (data: {
+    project_id: number
+    human_image: string  // URL or base64
+    cloth_image?: string | null
+    upper_cloth_image?: string | null
+    lower_cloth_image?: string | null
+    model?: string
+  }) => api.post<StudioGeneration>('/studio/try-on', data),
+
+  getTryOnModels: () =>
+    api.get<Array<{ id: string; name: string; supports_upper_lower: boolean }>>('/studio/try-on/models'),
+
+  // Runware operations
+  variationImage: (generationId: number, data: { prompt?: string; aspect_ratio?: string; model?: string }) =>
+    api.post<StudioGeneration>(`/studio/generations/${generationId}/variation`, data),
+
+  inpaintImage: (generationId: number, data: { prompt: string; negative_prompt?: string; mask_data_url: string }) =>
+    api.post<StudioGeneration>(`/studio/generations/${generationId}/inpaint`, data),
+
+  outpaintImage: (generationId: number, data: { prompt?: string; expand_left?: number; expand_right?: number; expand_up?: number; expand_down?: number }) =>
+    api.post<StudioGeneration>(`/studio/generations/${generationId}/outpaint`, data),
+
+  faceConsistency: (generationId: number, data: { face_image_url: string; prompt: string; aspect_ratio?: string }) =>
+    api.post<StudioGeneration>(`/studio/generations/${generationId}/face-consistency`, data),
 }
 
 // ── Pipeline API ─────────────────────────────────────────────────────────────
@@ -703,7 +729,7 @@ export const pipelineApi = {
     api.patch<PipelineScene[]>(`/pipeline/${pipelineId}/scenes/reorder`, { scene_ids: sceneIds }),
 
   generateScene: (pipelineId: number, sceneId: number, quality?: string) =>
-    api.post(`/pipeline/${pipelineId}/scenes/${sceneId}/generate`, { quality: quality || 'veo-3.1-fast' }),
+    api.post(`/pipeline/${pipelineId}/scenes/${sceneId}/generate`, { quality: quality || 'vidu/q3' }),
 
   cancelPipeline: (pipelineId: number) =>
     api.post(`/pipeline/${pipelineId}/cancel`),

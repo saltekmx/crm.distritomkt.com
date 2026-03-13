@@ -25,7 +25,6 @@ import {
   StopCircle,
   ImageIcon,
   DollarSign,
-  PanelLeft,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePipelineStore, type UIStage } from '@/stores/pipelineStore'
@@ -35,7 +34,6 @@ import { pipelineApi, getVideoSrc, type PipelineScene } from '@/services/api'
 import { MAX_SCENES, STATUS_CONFIG } from '@/constants/pipeline'
 import { RevisionChat } from '@/components/pipeline/RevisionChat'
 import { PromptHistoryViewer } from '@/components/pipeline/PromptHistoryViewer'
-import { PipelineLeftPanel } from '@/components/pipeline/PipelineLeftPanel'
 import { useRef } from 'react'
 import { toast } from 'sonner'
 
@@ -55,26 +53,30 @@ const ASPECT_RATIO_OPTIONS = [
 ]
 
 const MODEL_OPTIONS = [
-  { value: 'veo-3.1-fast', label: 'Veo 3.1 Fast', hint: '~$0.05/s', group: 'Google Veo' },
-  { value: 'veo-3.1', label: 'Veo 3.1 HQ', hint: '~$0.10/s', group: 'Google Veo' },
-  { value: 'kling/v1.5', label: 'Kling v1.5', hint: '~$0.05/5s', group: 'Kling' },
-  { value: 'kling/v1.6', label: 'Kling v1.6', hint: '~$0.05/5s', group: 'Kling' },
-  { value: 'kling/v2.1-master', label: 'Kling v2.1 Master', hint: '~$0.26/5s', group: 'Kling' },
-  { value: 'kling/v2.5', label: 'Kling v2.5 Turbo', hint: '~$0.07/s', group: 'Kling' },
-  { value: 'kling/v2.6', label: 'Kling v2.6', hint: '~$0.10/5s', group: 'Kling' },
-  { value: 'kling/v3', label: 'Kling v3', hint: '~$0.15/5s', group: 'Kling' },
+  { value: 'vidu/q3',         label: 'Vidu Q3',          hint: '~$0.10/5s', group: 'Vidu' },
+  { value: 'vidu/q3-turbo',   label: 'Vidu Q3 Turbo',    hint: '~$0.26/5s', group: 'Vidu' },
+  { value: 'wan/2.6',         label: 'Wan 2.6',           hint: '~$0.10/video', group: 'Alibaba' },
+  { value: 'wan/2.6-flash',   label: 'Wan 2.6 Flash',     hint: '~$0.025/video', group: 'Alibaba' },
+  { value: 'ltx/2.3',         label: 'LTX 2.3',           hint: '~$0.06/s', group: 'Lightricks' },
+  { value: 'ltx/2.3-fast',    label: 'LTX 2.3 Fast',      hint: '~$0.04/s', group: 'Lightricks' },
+  { value: 'seedance/1.5-pro',label: 'Seedance 1.5 Pro',  hint: '~$0.06/video', group: 'ByteDance' },
+  { value: 'pixverse/5.5',    label: 'PixVerse v5.5',      hint: '~$0.20/video', group: 'PixVerse' },
+  { value: 'pixverse/5.6',    label: 'PixVerse v5.6',      hint: '~$0.24/video', group: 'PixVerse' },
+  { value: 'runway/gen-4.5',  label: 'Runway Gen-4.5',     hint: '~$0.60/video', group: 'Runway' },
 ]
 
-// Cost per second lookup (approximate)
+// Flat cost-per-video estimate (Runware bills per job, not per second)
 const MODEL_COST_PER_SEC: Record<string, number> = {
-  'veo-3.1-fast': 0.05,
-  'veo-3.1': 0.10,
-  'kling/v1.5': 0.01,
-  'kling/v1.6': 0.01,
-  'kling/v2.1-master': 0.052,
-  'kling/v2.5': 0.07,
-  'kling/v2.6': 0.02,
-  'kling/v3': 0.03,
+  'vidu/q3':          0.02,
+  'vidu/q3-turbo':    0.052,
+  'wan/2.6':          0.02,
+  'wan/2.6-flash':    0.005,
+  'ltx/2.3':          0.012,
+  'ltx/2.3-fast':     0.008,
+  'seedance/1.5-pro': 0.012,
+  'pixverse/5.5':     0.04,
+  'pixverse/5.6':     0.048,
+  'runway/gen-4.5':   0.12,
 }
 
 // ── Responsive Hook ──────────────────────────────────────────────────────────
@@ -140,7 +142,7 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
 
   const [briefText, setBriefText] = useState('')
   const [selectedImages, setSelectedImages] = useState<string[]>([])
-  const [quality, setQuality] = useState('veo-3.1-fast')
+  const [quality, setQuality] = useState('vidu/q3')
   const [exportFormat, setExportFormat] = useState('mp4')
   const [audioEnabled, setAudioEnabled] = useState(true)
   const [seedValue, setSeedValue] = useState('')
@@ -151,13 +153,7 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
   const { reset: resetPipeline } = usePipelineStore()
 
   // Responsive breakpoints
-  const { isLeftCollapsed, isMobile } = usePipelineResponsive()
-  const [leftPanelOpen, setLeftPanelOpen] = useState(false)
-
-  // Close overlays when breakpoint changes back to non-collapsed
-  useEffect(() => {
-    if (!isLeftCollapsed) setLeftPanelOpen(false)
-  }, [isLeftCollapsed])
+  const { isMobile } = usePipelineResponsive()
 
   // Init pipeline on mount or project change
   useEffect(() => {
@@ -373,38 +369,6 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
 
       {/* 3-zone horizontal layout: Left Panel | Center | Right Panel */}
       <div className="flex-1 flex min-h-0 relative z-10">
-        {/* Left Panel — persistent scene strip, references, settings */}
-        {pipeline && currentStage !== 'idle' && !isMobile && (
-          isLeftCollapsed ? (
-            /* Collapsed left rail */
-            <div className="w-[40px] shrink-0 border-r border-zinc-800/40 bg-zinc-950 flex flex-col items-center py-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setLeftPanelOpen(true)}
-                className="p-2 rounded-lg text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
-                title="Abrir panel izquierdo"
-              >
-                <PanelLeft className="h-4 w-4" />
-              </button>
-              {/* Scene count indicator */}
-              <span className="text-[9px] font-medium text-zinc-600">{pipeline.escenas.length}</span>
-            </div>
-          ) : (
-            <PipelineLeftPanel
-              scenes={pipeline.escenas}
-              activeSceneId={activeSceneId}
-              onSelectScene={setActiveScene}
-              onAddScene={handleAddScene}
-              onDeleteScene={(id) => deleteScene(id)}
-              canAddScene={pipeline.escenas.length < MAX_SCENES}
-              referenceImages={selectedImages}
-              onRemoveReference={(url) => setSelectedImages(selectedImages.filter((u) => u !== url))}
-              onImportReferences={() => {/* TODO: open asset library modal */}}
-              estimatedCost={pipeline.escenas.reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
-              costBreakdown={`${pipeline.escenas.length} escena${pipeline.escenas.length !== 1 ? 's' : ''} × ${defaultDuration}s × ${(MODEL_OPTIONS.find((m) => m.value === quality)?.label ?? quality)}`}
-            />
-          )
-        )}
 
         {/* Center content — changes per stage */}
         <div key={currentStage} className={cn('flex-1 overflow-y-auto scrollbar-thin animate-stage-enter', isMobile && 'pb-14')}>
@@ -481,44 +445,6 @@ export function StudioVideoPipeline({ projectId }: StudioVideoPipelineProps) {
 
       </div>
 
-      {/* Overlay: Left panel (when collapsed and opened) */}
-      {pipeline && currentStage !== 'idle' && isLeftCollapsed && leftPanelOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-black/50"
-            onClick={() => setLeftPanelOpen(false)}
-          />
-          <div className="fixed inset-y-0 left-0 z-50 w-[260px] animate-slide-in-left">
-            <PipelineLeftPanel
-              scenes={pipeline.escenas}
-              activeSceneId={activeSceneId}
-              onSelectScene={(id) => { setActiveScene(id); if (isMobile) setLeftPanelOpen(false) }}
-              onAddScene={handleAddScene}
-              onDeleteScene={(id) => deleteScene(id)}
-              canAddScene={pipeline.escenas.length < MAX_SCENES}
-              referenceImages={selectedImages}
-              onRemoveReference={(url) => setSelectedImages(selectedImages.filter((u) => u !== url))}
-              onImportReferences={() => {/* TODO: open asset library modal */}}
-              estimatedCost={pipeline.escenas.reduce((acc, s) => acc + (s.duracion_seg ?? 0), 0) * ((MODEL_COST_PER_SEC[quality] ?? 0.05))}
-              costBreakdown={`${pipeline.escenas.length} escena${pipeline.escenas.length !== 1 ? 's' : ''} × ${defaultDuration}s × ${(MODEL_OPTIONS.find((m) => m.value === quality)?.label ?? quality)}`}
-            />
-          </div>
-        </>
-      )}
-
-      {/* Mobile floating panel toggle */}
-      {pipeline && currentStage !== 'idle' && isMobile && (
-        <div className="fixed bottom-16 right-3 z-30 flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={() => setLeftPanelOpen(true)}
-            className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700/50 flex items-center justify-center text-zinc-400 hover:text-violet-400 hover:border-violet-500/30 transition-all shadow-lg"
-            title="Escenas"
-          >
-            <PanelLeft className="h-4 w-4" />
-          </button>
-        </div>
-      )}
 
       {/* Bottom status bar */}
       {pipeline && (

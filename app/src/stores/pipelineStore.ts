@@ -142,7 +142,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     }
   },
 
-  generateScenes: async (sceneIds, quality = 'veo-3.1-fast') => {
+  generateScenes: async (sceneIds, quality = 'vidu/q3') => {
     const { pipeline } = get()
     if (!pipeline) return
     set({ isLoading: true })
@@ -369,7 +369,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     }
   },
 
-  generateSingleScene: async (sceneId, quality = 'veo-3.1-fast') => {
+  generateSingleScene: async (sceneId, quality = 'vidu/q3') => {
     const { pipeline } = get()
     if (!pipeline) return
     try {
