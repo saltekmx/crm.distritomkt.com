@@ -95,6 +95,14 @@ function App() {
             }
           />
           <Route
+            path="/proyectos/:id/cotizaciones/:quotationId"
+            element={
+              <ProtectedRoute permission="proyectos:read">
+                <ProjectDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/proyectos/:id/editar"
             element={
               <ProtectedRoute permission="proyectos:write">

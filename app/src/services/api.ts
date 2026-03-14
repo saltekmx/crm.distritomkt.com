@@ -290,6 +290,20 @@ export const projectsApi = {
     api.post(`/proyectos/${id}/materiales/generar`, body ?? {}),
 }
 
+// Cotizaciones endpoints — matches /api/v1/cotizaciones/*
+export const cotizacionesApi = {
+  list: (projectId: number | string) =>
+    api.get('/cotizaciones', { params: { project_id: projectId } }),
+  get: (id: number | string) =>
+    api.get(`/cotizaciones/${id}`),
+  create: (data: Record<string, unknown>) =>
+    api.post('/cotizaciones', data),
+  update: (id: number | string, data: Record<string, unknown>) =>
+    api.patch(`/cotizaciones/${id}`, data),
+  delete: (id: number | string) =>
+    api.delete(`/cotizaciones/${id}`),
+}
+
 // AI endpoints — matches /api/v1/ai/*
 export interface AiConversation {
   id: number
