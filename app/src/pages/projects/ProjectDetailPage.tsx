@@ -356,21 +356,26 @@ export default function ProjectDetailPage() {
       .finally(() => setLoading(false))
   }, [id, navigate])
 
-  useEffect(() => {
+  const refreshTimeline = useCallback(() => {
     if (!id) return
     projectsApi
-      .timeline(id, { limit: 20 })
+      .timeline(id, { limit: 50 })
       .then((res) => {
         const data = res.data
         setTimeline(Array.isArray(data) ? data : data.elementos ?? [])
       })
       .catch(() => setTimeline([]))
+  }, [id])
+
+  useEffect(() => {
+    refreshTimeline()
     // Fetch cotizaciones summary for foquitos
+    if (!id) return
     cotizacionesApi.list(id).then((res) => {
       const list = (res.data ?? []) as Quotation[]
       setCotizacionesSummary({ count: list.length, hasApproved: list.some((q) => q.estado === 'aprobada') })
     }).catch(() => {})
-  }, [id])
+  }, [id, refreshTimeline])
 
   if (loading) {
     return (
@@ -497,12 +502,12 @@ export default function ProjectDetailPage() {
         <OverviewTab project={project} timeline={timeline} tz={tz} operativeCompletedKeys={operativeCompletedKeys} />
       )}
       {activeTab === 'proposal' && (
-        <ProposalTab project={project} onUpdate={setProject} onFilesChange={(has) => setProposalHasFiles(has)} />
+        <ProposalTab project={project} onUpdate={(p) => { setProject(p); refreshTimeline() }} onFilesChange={(has) => setProposalHasFiles(has)} />
       )}
       {activeTab === 'materials' && (
         <MaterialsTab
           project={project}
-          onUpdate={setProject}
+          onUpdate={(p) => { setProject(p); refreshTimeline() }}
           onQuotationGenerated={() => setQuotationGenerated(true)}
           onSendToQuotation={(items) => {
             pendingQuotationItemsRef.current = items
@@ -529,7 +534,7 @@ export default function ProjectDetailPage() {
           project={project}
           pendingItemsRef={pendingQuotationItemsRef}
           quotationIdParam={quotationIdParam}
-          onCotizacionesChange={(list) => setCotizacionesSummary({ count: list.length, hasApproved: list.some((q) => q.estado === 'aprobada') })}
+          onCotizacionesChange={(list) => { setCotizacionesSummary({ count: list.length, hasApproved: list.some((q) => q.estado === 'aprobada') }); refreshTimeline() }}
         />
       )}
       {activeTab !== 'overview' && activeTab !== 'proposal' && activeTab !== 'materials' && activeTab !== 'quotes' && activeTab !== 'files' && activeTab !== 'history' && (
@@ -1895,10 +1900,15 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
         incluir_pdfs: genIncludePdfs,
         texto_adicional: genExtraText || undefined,
       })
-      const data = res.data as { materiales: Material[]; mensaje: string }
-      if (data.materiales.length > 0) {
+      const data = res.data as { materiales: Record<string, unknown>[]; mensaje: string }
+      // Normalize: rename 'material' → 'concepto' if backend returned old key
+      const normalized = data.materiales.map((m) => ({
+        ...m,
+        concepto: (m.concepto ?? m.material ?? '') as string,
+      })) as unknown as Material[]
+      if (normalized.length > 0) {
         setPreviewSource('AI')
-        setPreview(data.materiales)
+        setPreview(normalized)
       } else {
         toast.info(data.mensaje || 'No se encontraron materiales en la propuesta')
       }
