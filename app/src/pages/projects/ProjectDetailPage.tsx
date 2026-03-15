@@ -8,7 +8,7 @@ import {
   Banknote, Package, Loader2, Presentation, Boxes, Sparkles,
   Plus, Trash2, Save, Printer, GripVertical, ChevronDown,
   ChevronRight, Pencil, FolderPlus, X, Send, Mail, MessageCircle, Download, Upload, FileSpreadsheet, Percent,
-  Image, Check, MoreHorizontal, Copy, Eye,
+  Image, Check, MoreHorizontal, Copy, Eye, RefreshCw, CheckCircle2, ArrowRight,
 } from 'lucide-react'
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
@@ -4591,6 +4591,16 @@ function QuotationEditor({
 // History Tab
 // ---------------------------------------------------------------------------
 
+const TIMELINE_EVENT_STYLES: Record<string, { icon: typeof FileText; color: string }> = {
+  created: { icon: Plus, color: 'text-emerald-500' },
+  status_change: { icon: RefreshCw, color: 'text-blue-500' },
+  field_change: { icon: Pencil, color: 'text-amber-500' },
+  checklist_update: { icon: CheckCircle2, color: 'text-violet-500' },
+  move: { icon: ArrowRight, color: 'text-cyan-500' },
+  cotizacion_created: { icon: FileText, color: 'text-emerald-500' },
+  cotizacion_deleted: { icon: Trash2, color: 'text-red-500' },
+}
+
 function HistoryTab({ timeline, tz }: { timeline: TimelineEntry[]; tz: string }) {
   if (timeline.length === 0) {
     return (
@@ -4607,20 +4617,26 @@ function HistoryTab({ timeline, tz }: { timeline: TimelineEntry[]; tz: string })
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="divide-y divide-border">
-        {timeline.map((entry) => (
-          <div key={entry.id} className="p-4 flex items-start gap-3 hover:bg-muted/30 transition-colors">
-            <div className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm">
-                <span className="font-medium">{entry.descripcion}</span>
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {entry.nombre_creador && `${entry.nombre_creador} · `}
-                {formatDateTime(entry.creado_en, tz)}
-              </p>
+        {timeline.map((entry) => {
+          const style = TIMELINE_EVENT_STYLES[entry.tipo_evento] ?? { icon: FileText, color: 'text-muted-foreground' }
+          const Icon = style.icon
+          return (
+            <div key={entry.id} className="p-4 flex items-start gap-3 hover:bg-muted/30 transition-colors">
+              <div className={cn('mt-0.5 shrink-0', style.color)}>
+                <Icon className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm">
+                  <span className="font-medium">{entry.descripcion}</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {entry.nombre_creador && `${entry.nombre_creador} · `}
+                  {formatDateTime(entry.creado_en, tz)}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
