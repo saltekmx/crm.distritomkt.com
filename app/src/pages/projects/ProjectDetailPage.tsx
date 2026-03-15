@@ -67,7 +67,7 @@ interface Project {
 
 interface Material {
   categoria: string
-  material: string
+  concepto: string
   cantidad: number
   costo_dmkt_unitario: number
   margen_porcentaje: number
@@ -77,7 +77,7 @@ interface Material {
 }
 
 interface QuotationItem {
-  material: string
+  concepto: string
   cantidad: number
   precio_unitario: number
   categoria: string
@@ -802,13 +802,14 @@ function RowCells({
       )}
       <td className="px-3 py-1.5">
         {readOnly ? (
-          <span className="text-foreground">{row.material}</span>
+          <span className="text-foreground whitespace-pre-wrap">{row.concepto}</span>
         ) : (
-          <input
-            className="w-full bg-transparent border-0 outline-none text-foreground text-sm"
-            value={row.material}
-            onChange={(e) => onUpdateRow?.(idx, 'material', e.target.value)}
-            placeholder="Nombre del material"
+          <textarea
+            className="w-full bg-transparent border-0 outline-none text-foreground text-sm resize-none min-h-[1.75rem]"
+            value={row.concepto}
+            rows={Math.max(1, (row.concepto?.split('\n').length ?? 1))}
+            onChange={(e) => onUpdateRow?.(idx, 'concepto', e.target.value)}
+            placeholder="Descripción del concepto"
           />
         )}
       </td>
@@ -1211,7 +1212,7 @@ function MaterialsTable({
             </th>
           )}
           {!readOnly && <th className="w-8 print:hidden" />}
-          <th className="text-left px-3 py-2.5 font-medium text-muted-foreground print:text-gray-600 min-w-[240px]">Material</th>
+          <th className="text-left px-3 py-2.5 font-medium text-muted-foreground print:text-gray-600 min-w-[240px]">Concepto</th>
           <th className="text-right px-3 py-2.5 font-medium text-muted-foreground print:text-gray-600 w-[5%]">Cant.</th>
           <th className="text-right px-3 py-2.5 font-medium text-muted-foreground print:text-gray-600">Costo DMKT Unit.</th>
           <th className="text-right px-3 py-2.5 font-medium text-muted-foreground print:text-gray-600">Costo DMKT Total</th>
@@ -1520,7 +1521,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
     for (const [cat, items] of catMap) {
       msg += `\n${cat}:\n`
       for (const item of items) {
-        msg += `- ${item.material} (cantidad: ${item.cantidad})\n`
+        msg += `- ${item.concepto} (cantidad: ${item.cantidad})\n`
       }
     }
     msg += '\nGracias.'
@@ -1541,7 +1542,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
       tableRows += `<tr class="cat-row"><td colspan="3">${cat}</td></tr>`
       for (const item of items) {
         rowNum++
-        tableRows += `<tr><td class="num">${rowNum}</td><td>${item.material}</td><td class="center">${item.cantidad}</td></tr>`
+        tableRows += `<tr><td class="num">${rowNum}</td><td style="white-space:pre-wrap">${item.concepto}</td><td class="center">${item.cantidad}</td></tr>`
       }
     }
 
@@ -1610,7 +1611,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
     <div class="col"><div class="label">Fecha</div><div class="value">${today}</div></div>
     <div class="col"><div class="label">Proyecto</div><div class="value">${project.nombre}</div></div>
   </div>
-  <table><thead><tr><th style="width:30px;text-align:center">#</th><th>Material / Descripción</th><th style="width:70px;text-align:center">Cantidad</th></tr></thead><tbody>${tableRows}</tbody></table>
+  <table><thead><tr><th style="width:30px;text-align:center">#</th><th>Concepto</th><th style="width:70px;text-align:center">Cantidad</th></tr></thead><tbody>${tableRows}</tbody></table>
   <p class="summary">${selRows.length} material${selRows.length !== 1 ? 'es' : ''} en ${catMap.size} categoría${catMap.size !== 1 ? 's' : ''}</p>
   ${generalNote.trim() ? `<div class="notes"><strong>Notas:</strong>${generalNote}</div>` : ''}
   <div class="footer">Generado por DistritoMKT CRM — ${today}</div>
@@ -1715,13 +1716,13 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
       }])
       for (const item of items) {
         rowNum++
-        tableBody.push([String(rowNum), item.material, String(item.cantidad)])
+        tableBody.push([String(rowNum), item.concepto, String(item.cantidad)])
       }
     }
     autoTable(doc, {
       startY: y,
       margin: { left: margin, right: margin },
-      head: [['#', 'Material / Descripción', 'Cantidad']],
+      head: [['#', 'Concepto', 'Cantidad']],
       body: tableBody,
       styles: { fontSize: 10, cellPadding: 3, textColor: dark, lineColor: '#e2e8f0', lineWidth: 0.2 },
       headStyles: { fillColor: '#f8fafc', textColor: '#475569', fontStyle: 'bold', fontSize: 9 },
@@ -2000,7 +2001,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
     legendRow.height = 18
 
     // Header row (7 columns: Material, Cantidad, Costo DMKT, Margen%, Precio Cliente, Proveedor, Estado)
-    const headers = ['Material', 'Cantidad', 'Costo Unitario DMKT', 'Margen %', 'Precio Unitario Cliente', 'Proveedor', 'Estado']
+    const headers = ['Concepto', 'Cantidad', 'Costo Unitario DMKT', 'Margen %', 'Precio Unitario Cliente', 'Proveedor', 'Estado']
     const headerRow = ws.getRow(8)
     headers.forEach((h, i) => {
       const cell = headerRow.getCell(i + 1)
@@ -2108,7 +2109,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
 
         imported.push({
           categoria: currentCat,
-          material: mat,
+          concepto: mat,
           cantidad,
           costo_dmkt_unitario: costoUn,
           margen_porcentaje: margen,
@@ -2142,13 +2143,13 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
       const catPrecio = g.items.reduce((s, { row: r }) => s + r.cantidad * r.precio_cliente_unitario, 0)
       tableRows += `<tr style="background:#f3f4f6;font-weight:700"><td colspan="3" style="padding:8px;text-transform:uppercase;letter-spacing:0.05em">${g.categoria}</td><td style="padding:8px;text-align:right">${fmt(catCosto)}</td><td></td><td style="padding:8px;text-align:right">${fmt(catPrecio)}</td><td></td></tr>`
       for (const { row } of g.items) {
-        tableRows += `<tr style="border-bottom:1px solid #e5e7eb"><td style="padding:6px 8px 6px 24px">${row.material}</td><td style="padding:6px 8px;text-align:right">${row.cantidad}</td><td style="padding:6px 8px;text-align:right">${fmt(row.costo_dmkt_unitario)}</td><td style="padding:6px 8px;text-align:right">${fmt(row.cantidad * row.costo_dmkt_unitario)}</td><td style="padding:6px 8px;text-align:right">${fmt(row.precio_cliente_unitario)}</td><td style="padding:6px 8px;text-align:right">${fmt(row.cantidad * row.precio_cliente_unitario)}</td><td style="padding:6px 8px;text-align:center;font-size:11px">${row.status}</td></tr>`
+        tableRows += `<tr style="border-bottom:1px solid #e5e7eb"><td style="padding:6px 8px 6px 24px">${row.concepto}</td><td style="padding:6px 8px;text-align:right">${row.cantidad}</td><td style="padding:6px 8px;text-align:right">${fmt(row.costo_dmkt_unitario)}</td><td style="padding:6px 8px;text-align:right">${fmt(row.cantidad * row.costo_dmkt_unitario)}</td><td style="padding:6px 8px;text-align:right">${fmt(row.precio_cliente_unitario)}</td><td style="padding:6px 8px;text-align:right">${fmt(row.cantidad * row.precio_cliente_unitario)}</td><td style="padding:6px 8px;text-align:center;font-size:11px">${row.status}</td></tr>`
       }
     }
 
     win.document.write(`<!DOCTYPE html><html><head><title>Costeo — ${project.nombre}</title><style>body{font-family:Inter,-apple-system,sans-serif;color:#1e293b;margin:40px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#f8fafc;border-bottom:2px solid #cbd5e1;padding:10px 8px;text-align:left;font-weight:600;color:#475569}td{padding:6px 8px}.logo{height:40px}h1{font-size:18px;margin:0}h2{font-size:14px;color:#64748b;margin:4px 0 0;font-weight:400}@media print{body{margin:20px}}</style></head><body>`)
     win.document.write(`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;border-bottom:2px solid #e2e8f0;padding-bottom:16px"><div><h1>${project.nombre}</h1><h2>${project.cliente_nombre ?? ''} — Costeo de materiales</h2></div><img src="/logo-dark.png" class="logo" /></div>`)
-    win.document.write(`<table><thead><tr><th>Material</th><th style="text-align:right">Cant.</th><th style="text-align:right">Costo DMKT Unit.</th><th style="text-align:right">Costo DMKT Total</th><th style="text-align:right">Precio Cliente Unit.</th><th style="text-align:right">Precio Cliente Total</th><th style="text-align:center">Status</th></tr></thead><tbody>${tableRows}</tbody>`)
+    win.document.write(`<table><thead><tr><th>Concepto</th><th style="text-align:right">Cant.</th><th style="text-align:right">Costo DMKT Unit.</th><th style="text-align:right">Costo DMKT Total</th><th style="text-align:right">Precio Cliente Unit.</th><th style="text-align:right">Precio Cliente Total</th><th style="text-align:center">Status</th></tr></thead><tbody>${tableRows}</tbody>`)
     win.document.write(`<tfoot><tr style="border-top:2px solid #cbd5e1;background:#f8fafc;font-weight:700"><td colspan="2" style="padding:10px 8px">Totales (${printRows.length} items)</td><td></td><td style="padding:10px 8px;text-align:right">${fmt(totalCosto)}</td><td></td><td style="padding:10px 8px;text-align:right">${fmt(totalPrecio)}</td><td></td></tr>`)
     win.document.write(`<tr style="background:#f8fafc;font-weight:700"><td colspan="4" style="padding:8px">Margen total</td><td></td><td style="padding:8px;text-align:right;color:${margenTotal >= 0 ? '#10b981' : '#ef4444'}">${fmt(margenTotal)} (${totalCosto > 0 ? ((margenTotal / totalCosto) * 100).toFixed(1) : '0'}%)</td><td></td></tr></tfoot></table>`)
     win.document.write(`<div style="margin-top:32px;font-size:11px;color:#94a3b8;text-align:center">Generado por DistritoMKT CRM — ${new Date().toLocaleDateString('es-MX')}</div></body></html>`)
@@ -2185,13 +2186,13 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
 
   const addRow = () => {
     const lastCat = rows.length > 0 ? rows[rows.length - 1].categoria : 'GENERAL'
-    setRows((prev) => [...prev, { categoria: lastCat, material: '', cantidad: 1, costo_dmkt_unitario: 0, margen_porcentaje: 30, precio_cliente_unitario: 0, proveedor: '', status: 'pendiente' }])
+    setRows((prev) => [...prev, { categoria: lastCat, concepto: '', cantidad: 1, costo_dmkt_unitario: 0, margen_porcentaje: 30, precio_cliente_unitario: 0, proveedor: '', status: 'pendiente' }])
     setDirty(true)
   }
 
   const addCategory = () => {
     const name = `NUEVA CATEGORÍA ${groupByCategory(rows).length + 1}`
-    setRows((prev) => [...prev, { categoria: name, material: '', cantidad: 1, costo_dmkt_unitario: 0, margen_porcentaje: 30, precio_cliente_unitario: 0, proveedor: '', status: 'pendiente' }])
+    setRows((prev) => [...prev, { categoria: name, concepto: '', cantidad: 1, costo_dmkt_unitario: 0, margen_porcentaje: 30, precio_cliente_unitario: 0, proveedor: '', status: 'pendiente' }])
     setDirty(true)
   }
 
@@ -2728,7 +2729,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
                       <DropdownMenuItem
                         onClick={() => {
                           const items: QuotationItem[] = rows.map((m) => ({
-                            material: m.material,
+                            concepto: m.concepto,
                             cantidad: m.cantidad,
                             precio_unitario: m.precio_cliente_unitario,
                             categoria: m.categoria,
@@ -2831,7 +2832,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
                 const items: QuotationItem[] = rows
                   .filter((_, i) => selectedRows.has(i))
                   .map((m) => ({
-                    material: m.material,
+                    concepto: m.concepto,
                     cantidad: m.cantidad,
                     precio_unitario: m.precio_cliente_unitario,
                     categoria: m.categoria,
@@ -2924,7 +2925,7 @@ function buildQuotationPreviewHtml(q: Quotation, project: Project): string {
     tableRows += `<tr class="cat-row"><td colspan="4">${cat}</td></tr>`
     for (const item of catItems) {
       rowNum++
-      tableRows += `<tr><td class="num">${rowNum}</td><td>${item.material}</td><td class="center">${item.cantidad}</td><td class="right">${fmtMXN(item.precio_unitario)}</td></tr>`
+      tableRows += `<tr><td class="num">${rowNum}</td><td style="white-space:pre-wrap">${item.concepto}</td><td class="center">${item.cantidad}</td><td class="right">${fmtMXN(item.precio_unitario)}</td></tr>`
     }
   }
 
@@ -2997,7 +2998,7 @@ function buildQuotationPreviewHtml(q: Quotation, project: Project): string {
     <div class="col"><div class="label">Proyecto</div><div class="value">${project.nombre}</div></div>
   </div>
   ${q.texto_intro ? `<div class="intro">${q.texto_intro}</div>` : ''}
-  <table><thead><tr><th style="width:30px;text-align:center">#</th><th>Material / Descripción</th><th style="width:70px;text-align:center">Cantidad</th><th style="width:100px;text-align:right">Precio Unit.</th></tr></thead><tbody>${tableRows}</tbody></table>
+  <table><thead><tr><th style="width:30px;text-align:center">#</th><th>Concepto</th><th style="width:70px;text-align:center">Cantidad</th><th style="width:100px;text-align:right">Precio Unit.</th></tr></thead><tbody>${tableRows}</tbody></table>
   <div class="totals">
     <div class="line"><span class="label">Subtotal:</span><span class="amount">${fmtMXN(sub)}</span></div>
     ${q.descuento_porcentaje > 0 ? `<div class="line"><span class="label">Descuento (${q.descuento_porcentaje}%):</span><span class="amount">-${fmtMXN(disc)}</span></div>` : ''}
@@ -3113,13 +3114,13 @@ async function generateQuotationPdfBlob(q: Quotation, project: Project): Promise
     }])
     for (const item of catItems) {
       rowNum++
-      tableBody.push([String(rowNum), item.material, String(item.cantidad), fmtMXN(item.precio_unitario)])
+      tableBody.push([String(rowNum), item.concepto, String(item.cantidad), fmtMXN(item.precio_unitario)])
     }
   }
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
-    head: [['#', 'Material / Descripción', 'Cantidad', 'Precio Unit.']],
+    head: [['#', 'Concepto', 'Cantidad', 'Precio Unit.']],
     body: tableBody,
     styles: { fontSize: 10, cellPadding: 3, textColor: dark, lineColor: '#e2e8f0', lineWidth: 0.2 },
     headStyles: { fillColor: '#f8fafc', textColor: '#475569', fontStyle: 'bold', fontSize: 9 },
@@ -3792,7 +3793,7 @@ function FromCosteoSelector({
     const items: QuotationItem[] = materials
       .filter((_, i) => selected.has(i))
       .map((m) => ({
-        material: m.material,
+        concepto: m.concepto,
         cantidad: m.cantidad,
         precio_unitario: m.precio_cliente_unitario,
         categoria: m.categoria,
@@ -3806,7 +3807,7 @@ function FromCosteoSelector({
       <div className="relative w-[95vw] max-w-2xl max-h-[80vh] rounded-xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <div>
-            <h3 className="text-lg font-semibold">Seleccionar materiales del costeo</h3>
+            <h3 className="text-lg font-semibold">Seleccionar conceptos del costeo</h3>
             <p className="text-sm text-muted-foreground">Se importarán con precios cliente (sin costos internos)</p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer">
@@ -3818,7 +3819,7 @@ function FromCosteoSelector({
             <thead>
               <tr className="border-b border-border bg-muted/30 sticky top-0">
                 <th className="w-8 px-3 py-2" />
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Material</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Concepto</th>
                 <th className="text-right px-3 py-2 font-medium text-muted-foreground w-20">Cant.</th>
                 <th className="text-right px-3 py-2 font-medium text-muted-foreground">Precio Cliente</th>
               </tr>
@@ -3855,7 +3856,7 @@ function FromCosteoSelector({
                             className="accent-[var(--primary)] cursor-pointer"
                           />
                         </td>
-                        <td className="px-3 py-1.5">{row.material}</td>
+                        <td className="px-3 py-1.5 whitespace-pre-wrap">{row.concepto}</td>
                         <td className="px-3 py-1.5 text-right">{row.cantidad}</td>
                         <td className="px-3 py-1.5 text-right">{fmtMXN(row.precio_cliente_unitario)}</td>
                       </tr>
@@ -3959,7 +3960,7 @@ function QuotationEditor({
     const lastCat = q.items.length > 0 ? q.items[q.items.length - 1].categoria : 'GENERAL'
     setQ((prev) => ({
       ...prev,
-      items: [...prev.items, { material: '', cantidad: 1, precio_unitario: 0, categoria: lastCat }],
+      items: [...prev.items, { concepto: '', cantidad: 1, precio_unitario: 0, categoria: lastCat }],
     }))
   }
 
@@ -3969,7 +3970,7 @@ function QuotationEditor({
       const items = [...prev.items]
       let lastIdx = -1
       items.forEach((item, i) => { if (item.categoria === cat) lastIdx = i })
-      const newItem: QuotationItem = { material: '', cantidad: 1, precio_unitario: 0, categoria: cat }
+      const newItem: QuotationItem = { concepto: '', cantidad: 1, precio_unitario: 0, categoria: cat }
       if (lastIdx === -1) {
         items.push(newItem)
       } else {
@@ -3987,7 +3988,7 @@ function QuotationEditor({
     while (existingCats.has(catName)) { num++; catName = `CATEGORÍA ${num}` }
     setQ((prev) => ({
       ...prev,
-      items: [...prev.items, { material: '', cantidad: 1, precio_unitario: 0, categoria: catName }],
+      items: [...prev.items, { concepto: '', cantidad: 1, precio_unitario: 0, categoria: catName }],
     }))
   }
 
@@ -4208,7 +4209,7 @@ function QuotationEditor({
               <RichTextEditor
                 value={q.texto_intro}
                 onChange={(html) => updateField('texto_intro', html)}
-                placeholder="Texto que aparece antes de la tabla de materiales..."
+                placeholder="Texto que aparece antes de la tabla de conceptos..."
               />
             </div>
           </div>
@@ -4234,7 +4235,7 @@ function QuotationEditor({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/20">
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs min-w-[240px]">Material</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs min-w-[240px]">Concepto</th>
                     <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs w-16">Cant.</th>
                     <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs w-28">Precio Unit.</th>
                     <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs w-28">Total</th>
@@ -4245,7 +4246,7 @@ function QuotationEditor({
                   {itemGroups.length === 0 && (
                     <tr>
                       <td colSpan={5} className="text-center py-8 text-sm text-muted-foreground">
-                        Sin items — agrega una categoría o materiales
+                        Sin items — agrega una categoría o conceptos
                       </td>
                     </tr>
                   )}
@@ -4323,11 +4324,12 @@ function QuotationEditor({
                         {group.items.map(({ item, idx }) => (
                           <tr key={idx} className="border-b border-border/30 hover:bg-muted/10 transition-colors group">
                             <td className="px-3 py-1.5 pl-6">
-                              <input
-                                className="w-full bg-transparent border-0 outline-none text-sm"
-                                value={item.material}
-                                onChange={(e) => updateItem(idx, 'material', e.target.value)}
-                                placeholder="Nombre del material"
+                              <textarea
+                                className="w-full bg-transparent border-0 outline-none text-sm resize-none min-h-[1.75rem]"
+                                value={item.concepto}
+                                rows={Math.max(1, (item.concepto?.split('\n').length ?? 1))}
+                                onChange={(e) => updateItem(idx, 'concepto', e.target.value)}
+                                placeholder="Descripción del concepto"
                               />
                             </td>
                             <td className="px-3 py-1.5">
