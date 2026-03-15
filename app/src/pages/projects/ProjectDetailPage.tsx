@@ -4604,11 +4604,13 @@ function QuotationEditor({
 const TIMELINE_EVENT_STYLES: Record<string, { icon: typeof FileText; color: string }> = {
   created: { icon: Plus, color: 'text-emerald-500' },
   status_change: { icon: RefreshCw, color: 'text-blue-500' },
-  field_change: { icon: Pencil, color: 'text-amber-500' },
   checklist_update: { icon: CheckCircle2, color: 'text-violet-500' },
   move: { icon: ArrowRight, color: 'text-cyan-500' },
-  cotizacion_created: { icon: FileText, color: 'text-emerald-500' },
+  propuesta: { icon: Presentation, color: 'text-amber-500' },
+  costeo: { icon: Boxes, color: 'text-orange-500' },
+  cotizacion_created: { icon: Receipt, color: 'text-emerald-500' },
   cotizacion_deleted: { icon: Trash2, color: 'text-red-500' },
+  cotizacion_status: { icon: CheckCircle2, color: 'text-blue-500' },
 }
 
 function HistoryTab({ timeline, tz }: { timeline: TimelineEntry[]; tz: string }) {
