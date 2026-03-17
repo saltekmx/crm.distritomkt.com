@@ -113,6 +113,17 @@ interface TimelineEntry {
   creado_en: string
 }
 
+// Normalize legacy data: rename 'material' → 'concepto' for backwards compat
+function normalizeMaterials<T extends Record<string, unknown>>(items: T[]): T[] {
+  return items.map((item) => {
+    if ('material' in item && !('concepto' in item)) {
+      const { material, ...rest } = item
+      return { ...rest, concepto: material } as T
+    }
+    return item
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Status steps
 // ---------------------------------------------------------------------------
@@ -1365,7 +1376,7 @@ interface CatalogImage {
 }
 
 function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotation }: { project: Project; onUpdate: (p: Project) => void; onQuotationGenerated?: () => void; onSendToQuotation?: (items: QuotationItem[]) => void }) {
-  const [rows, setRows] = useState<Material[]>(project.materiales ?? [])
+  const [rows, setRows] = useState<Material[]>(normalizeMaterials(project.materiales ?? []))
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -1900,12 +1911,8 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
         incluir_pdfs: genIncludePdfs,
         texto_adicional: genExtraText || undefined,
       })
-      const data = res.data as { materiales: Record<string, unknown>[]; mensaje: string }
-      // Normalize: rename 'material' → 'concepto' if backend returned old key
-      const normalized = data.materiales.map((m) => ({
-        ...m,
-        concepto: (m.concepto ?? m.material ?? '') as string,
-      })) as unknown as Material[]
+      const data = res.data as { materiales: Material[]; mensaje: string }
+      const normalized = normalizeMaterials(data.materiales)
       if (normalized.length > 0) {
         setPreviewSource('AI')
         setPreview(normalized)
@@ -3521,7 +3528,7 @@ function QuotesTab({ project, pendingItemsRef, quotationIdParam, onCotizacionesC
   }
 
   const editingQuotation = editingId ? cotizaciones.find((q) => q.id === editingId) ?? null : null
-  const materials = project.materiales ?? []
+  const materials = normalizeMaterials(project.materiales ?? [])
 
   if (loading) {
     return (
