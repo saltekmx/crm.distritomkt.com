@@ -258,6 +258,7 @@ export default function ProjectsPage() {
               <th className="px-6 py-4 font-medium">Tipo</th>
               <th className="px-6 py-4 font-medium">Estado Op.</th>
               <th className="px-6 py-4 font-medium">Estado Admin.</th>
+              <th className="px-6 py-4 font-medium">Responsable</th>
               <th className="px-6 py-4 font-medium">Entrega</th>
               <th className="px-6 py-4 font-medium w-14"></th>
             </tr>
@@ -272,13 +273,14 @@ export default function ProjectsPage() {
                   <td className="px-6 py-5"><div className="h-6 w-20 rounded-full bg-muted animate-pulse" /></td>
                   <td className="px-6 py-5"><div className="h-6 w-20 rounded-full bg-muted animate-pulse" /></td>
                   <td className="px-6 py-5"><div className="h-6 w-20 rounded-full bg-muted animate-pulse" /></td>
+                  <td className="px-6 py-5"><div className="h-3.5 w-16 rounded bg-muted animate-pulse" /></td>
                   <td className="px-6 py-5"><div className="h-3.5 w-20 rounded bg-muted animate-pulse" /></td>
                   <td className="px-6 py-5"><div className="h-8 w-8 rounded bg-muted animate-pulse" /></td>
                 </tr>
               ))
             ) : projects.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-6 py-20 text-center">
+                <td colSpan={9} className="px-6 py-20 text-center">
                   <FolderKanban className="mx-auto h-10 w-10 text-muted-foreground/40" />
                   <p className="mt-3 text-sm font-medium text-muted-foreground">
                     {search || filterTipo || filterStatus ? 'No se encontraron resultados' : 'No hay proyectos registrados'}
@@ -297,7 +299,7 @@ export default function ProjectsPage() {
                   <tr
                     key={project.id}
                     className="transition-colors hover:bg-muted/20 group cursor-pointer"
-                    onClick={() => navigate(ROUTES.PROJECTS_DETAIL(project.id))}
+                    onClick={() => navigate(ROUTES.PROJECTS_DETAIL(project.codigo))}
                   >
                     <td className="px-6 py-4">
                       <span className="text-xs font-mono text-muted-foreground">{project.codigo}</span>
@@ -326,6 +328,9 @@ export default function ProjectsPage() {
                       )}
                     </td>
                     <td className="px-6 py-4">
+                      <span className="text-sm text-muted-foreground">{project.responsable_nombre || '—'}</span>
+                    </td>
+                    <td className="px-6 py-4">
                       <span className="text-xs text-muted-foreground">{formatDate(project.fecha_entrega)}</span>
                     </td>
                     <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
@@ -336,7 +341,7 @@ export default function ProjectsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuItem onClick={() => navigate(ROUTES.PROJECTS_DETAIL(project.id))}>
+                          <DropdownMenuItem onClick={() => navigate(ROUTES.PROJECTS_DETAIL(project.codigo))}>
                             <Pencil className="h-4 w-4" />
                             Editar proyecto
                           </DropdownMenuItem>

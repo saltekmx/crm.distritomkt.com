@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
+import React, { useState, useEffect, useRef, useCallback, Fragment, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
@@ -352,8 +352,6 @@ export default function ProjectDetailPage() {
   const [cotizacionesSummary, setCotizacionesSummary] = useState<{ count: number; hasApproved: boolean }>({ count: 0, hasApproved: false })
 
   // Pending quotation items from costeo → quotes tab (ref so it's available synchronously on mount)
-  const pendingQuotationItemsRef = useRef<QuotationItem[] | null>(null)
-  const [quotesTabKey, setQuotesTabKey] = useState(0)
 
   useEffect(() => {
     setLoading(true)
@@ -428,7 +426,10 @@ export default function ProjectDetailPage() {
                 <StatusPill label={admStatus.label} color={admStatus.color} />
               )}
             </div>
-            <h1 className="text-2xl font-bold">{project.nombre}</h1>
+            <h1 className="text-2xl font-bold flex items-center gap-3">
+              {project.nombre}
+              <span className="text-sm font-mono font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">{project.codigo}</span>
+            </h1>
             <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
               {project.cliente_nombre && (
                 <span className="flex items-center gap-1.5">
@@ -518,12 +519,11 @@ export default function ProjectDetailPage() {
       {activeTab === 'materials' && (
         <MaterialsTab
           project={project}
-          onUpdate={(p) => { setProject(p); refreshTimeline() }}
+          onUpdate={setProject}
           onQuotationGenerated={() => setQuotationGenerated(true)}
-          onSendToQuotation={(items) => {
-            pendingQuotationItemsRef.current = items
-            setQuotesTabKey((k) => k + 1)
-            navigate(`/proyectos/${id}/cotizaciones/nueva`, { replace: true })
+          onSendToQuotation={(quotationId) => {
+            navigate(`/proyectos/${id}/cotizaciones/${quotationId}`, { replace: true })
+            refreshTimeline()
           }}
         />
       )}
@@ -541,9 +541,7 @@ export default function ProjectDetailPage() {
       )}
       {activeTab === 'quotes' && (
         <QuotesTab
-          key={quotesTabKey}
           project={project}
-          pendingItemsRef={pendingQuotationItemsRef}
           quotationIdParam={quotationIdParam}
           onCotizacionesChange={(list) => { setCotizacionesSummary({ count: list.length, hasApproved: list.some((q) => q.estado === 'aprobada') }); refreshTimeline() }}
         />
@@ -783,15 +781,95 @@ function groupByCategory(rows: Material[]): Array<{ categoria: string; items: Ar
 const fmtMXN = (n: number) =>
   n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 })
 
+/** Text input that keeps local state while typing — only pushes to parent on blur */
+const DeferredTextarea = memo(function DeferredTextarea({ value, onChange, placeholder, className }: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  className?: string
+}) {
+  const [local, setLocal] = useState(value)
+  const localRef = useRef(local)
+  localRef.current = local
+  // Sync from parent when external value changes (e.g. reorder, import)
+  useEffect(() => { setLocal(value) }, [value])
+  return (
+    <textarea
+      className={className}
+      value={local}
+      rows={Math.max(1, (local?.split('\n').length ?? 1))}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => { if (localRef.current !== value) onChange(localRef.current) }}
+      placeholder={placeholder}
+    />
+  )
+})
+
+/** Number input with local state — propagates on blur */
+const DeferredNumberInput = memo(function DeferredNumberInput({ value, onChange, className, min, max }: {
+  value: number
+  onChange: (v: number) => void
+  className?: string
+  min?: number
+  max?: number
+}) {
+  const [local, setLocal] = useState(String(value))
+  const localRef = useRef(local)
+  localRef.current = local
+  useEffect(() => { setLocal(String(value)) }, [value])
+  return (
+    <input
+      type="number"
+      className={className}
+      value={local}
+      min={min}
+      max={max}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => {
+        const n = Number(localRef.current) || 0
+        if (n !== value) onChange(n)
+      }}
+    />
+  )
+})
+
+/** Currency input with local state — propagates on blur */
+const DeferredCurrencyInput = memo(function DeferredCurrencyInput({ value, onChange }: {
+  value: number
+  onChange: (v: number) => void
+}) {
+  const [local, setLocal] = useState(String(value))
+  const [focused, setFocused] = useState(false)
+  const localRef = useRef(local)
+  localRef.current = local
+  useEffect(() => { if (!focused) setLocal(String(value)) }, [value, focused])
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      className="w-full bg-transparent border-0 outline-none text-right text-foreground text-sm"
+      value={focused ? local : fmtMXN(value)}
+      onFocus={() => { setFocused(true); setLocal(String(value)) }}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => {
+        setFocused(false)
+        const n = Number(localRef.current.replace(/[^0-9.-]/g, '')) || 0
+        if (n !== value) onChange(n)
+      }}
+    />
+  )
+})
+
 /** Static row cells — shared by SortableRow and DragOverlay */
-function RowCells({
-  row, idx, onUpdateRow, onRemoveRow, readOnly, dragHandleProps,
+const RowCells = React.memo(function RowCells({
+  row, idx, onUpdateRow, onRemoveRow, onDuplicateRow, readOnly, dragHandleProps,
   selected, onToggleSelect,
 }: {
   row: Material
   idx: number
   onUpdateRow?: (idx: number, field: keyof Material, value: string | number) => void
   onRemoveRow?: (idx: number) => void
+  onDuplicateRow?: (idx: number) => void
   readOnly?: boolean
   dragHandleProps?: Record<string, unknown>
   selected?: boolean
@@ -820,11 +898,10 @@ function RowCells({
         {readOnly ? (
           <span className="text-foreground whitespace-pre-wrap">{row.concepto}</span>
         ) : (
-          <textarea
+          <DeferredTextarea
             className="w-full bg-transparent border-0 outline-none text-foreground text-sm resize-none min-h-[1.75rem]"
-            value={row.concepto}
-            rows={Math.max(1, (row.concepto?.split('\n').length ?? 1))}
-            onChange={(e) => onUpdateRow?.(idx, 'concepto', e.target.value)}
+            value={row.concepto ?? ''}
+            onChange={(v) => onUpdateRow?.(idx, 'concepto', v)}
             placeholder="Descripción del concepto"
           />
         )}
@@ -833,11 +910,11 @@ function RowCells({
         {readOnly ? (
           <span className="block text-right">{row.cantidad}</span>
         ) : (
-          <input type="number" className="w-full bg-transparent border-0 outline-none text-right text-foreground text-sm" value={row.cantidad} min={0} onChange={(e) => onUpdateRow?.(idx, 'cantidad', Number(e.target.value) || 0)} />
+          <DeferredNumberInput className="w-full bg-transparent border-0 outline-none text-right text-foreground text-sm" value={row.cantidad} min={0} onChange={(v) => onUpdateRow?.(idx, 'cantidad', v)} />
         )}
       </td>
       <td className="px-3 py-1.5">
-        {readOnly ? <span className="block text-right">{fmtMXN(row.costo_dmkt_unitario)}</span> : <CurrencyInput value={row.costo_dmkt_unitario} onChange={(v) => { onUpdateRow?.(idx, 'costo_dmkt_unitario', v); onUpdateRow?.(idx, 'precio_cliente_unitario', Math.round(v * (1 + (row.margen_porcentaje ?? 30) / 100) * 100) / 100) }} />}
+        {readOnly ? <span className="block text-right">{fmtMXN(row.costo_dmkt_unitario)}</span> : <DeferredCurrencyInput value={row.costo_dmkt_unitario} onChange={(v) => onUpdateRow?.(idx, 'costo_dmkt_unitario', v)} />}
       </td>
       <td className="px-3 py-1.5 text-right text-muted-foreground print:text-gray-500">{fmtMXN(row.cantidad * row.costo_dmkt_unitario)}</td>
       <td className="px-3 py-1.5">
@@ -845,7 +922,7 @@ function RowCells({
           <span className="block text-right">{row.margen_porcentaje ?? 30}%</span>
         ) : (
           <div className="flex items-center justify-end gap-0.5">
-            <input type="number" className="w-14 bg-transparent border-0 outline-none text-right text-foreground text-sm" value={row.margen_porcentaje ?? 30} min={0} onChange={(e) => { const pct = Number(e.target.value) || 0; onUpdateRow?.(idx, 'margen_porcentaje', pct); onUpdateRow?.(idx, 'precio_cliente_unitario', Math.round(row.costo_dmkt_unitario * (1 + pct / 100) * 100) / 100) }} />
+            <DeferredNumberInput className="w-14 bg-transparent border-0 outline-none text-right text-foreground text-sm" value={row.margen_porcentaje ?? 30} min={0} onChange={(v) => onUpdateRow?.(idx, 'margen_porcentaje', v)} />
             <span className="text-muted-foreground text-xs">%</span>
           </div>
         )}
@@ -854,7 +931,7 @@ function RowCells({
         {readOnly ? (
           <span className="block text-right">{fmtMXN(row.precio_cliente_unitario)}</span>
         ) : (
-          <CurrencyInput value={row.precio_cliente_unitario} onChange={(v) => { onUpdateRow?.(idx, 'precio_cliente_unitario', v); if (row.costo_dmkt_unitario > 0) { onUpdateRow?.(idx, 'margen_porcentaje', Math.round((v / row.costo_dmkt_unitario - 1) * 10000) / 100) } }} />
+          <DeferredCurrencyInput value={row.precio_cliente_unitario} onChange={(v) => onUpdateRow?.(idx, 'precio_cliente_unitario', v)} />
         )}
       </td>
       <td className="px-3 py-1.5 text-right text-muted-foreground print:text-gray-500">{fmtMXN(row.cantidad * row.precio_cliente_unitario)}</td>
@@ -895,19 +972,24 @@ function RowCells({
         )}
       </td>
       {!readOnly && (
-        <td className="px-2 py-1.5 print:hidden">
-          <button onClick={() => onRemoveRow?.(idx)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer">
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+        <td className="px-1 py-1.5 print:hidden">
+          <div className="flex items-center gap-0.5">
+            <button onClick={() => onDuplicateRow?.(idx)} className="p-1 rounded hover:bg-muted text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer" title="Duplicar">
+              <Copy className="h-3 w-3" />
+            </button>
+            <button onClick={() => onRemoveRow?.(idx)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground/50 hover:text-destructive transition-colors cursor-pointer" title="Eliminar">
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
         </td>
       )}
     </>
   )
-}
+})
 
 /** Sortable row — becomes a placeholder when dragging (DragOverlay renders the floating copy) */
-function SortableRow({
-  id, row, idx, onUpdateRow, onRemoveRow, readOnly,
+const SortableRow = memo(function SortableRow({
+  id, row, idx, onUpdateRow, onRemoveRow, onDuplicateRow, readOnly,
   selected, onToggleSelect,
 }: {
   id: string
@@ -915,6 +997,7 @@ function SortableRow({
   idx: number
   onUpdateRow?: (idx: number, field: keyof Material, value: string | number) => void
   onRemoveRow?: (idx: number) => void
+  onDuplicateRow?: (idx: number) => void
   readOnly?: boolean
   selected?: boolean
   onToggleSelect?: (idx: number) => void
@@ -935,13 +1018,13 @@ function SortableRow({
 
   return (
     <tr ref={setNodeRef} style={style} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-      <RowCells row={row} idx={idx} onUpdateRow={onUpdateRow} onRemoveRow={onRemoveRow} readOnly={readOnly} dragHandleProps={{ ...attributes, ...listeners }} selected={selected} onToggleSelect={onToggleSelect} />
+      <RowCells row={row} idx={idx} onUpdateRow={onUpdateRow} onRemoveRow={onRemoveRow} onDuplicateRow={onDuplicateRow} readOnly={readOnly} dragHandleProps={{ ...attributes, ...listeners }} selected={selected} onToggleSelect={onToggleSelect} />
     </tr>
   )
-}
+})
 
 /** Sortable category header with drag handle */
-function SortableCategoryHeader({
+const SortableCategoryHeader = memo(function SortableCategoryHeader({
   id, group, groups, isCollapsed, catPrecio, colCount, readOnly,
   editingCat, editCatValue,
   onToggleCollapse, onStartEditCat, onEditCatValueChange, onCommitEditCat, onCancelEditCat,
@@ -1068,12 +1151,13 @@ function SortableCategoryHeader({
       </td>
     </tr>
   )
-}
+})
 
 function MaterialsTable({
   rows,
   onUpdateRow,
   onRemoveRow,
+  onDuplicateRow,
   onReorder,
   onRenameCategory,
   onDeleteCategory,
@@ -1086,6 +1170,7 @@ function MaterialsTable({
   rows: Material[]
   onUpdateRow?: (idx: number, field: keyof Material, value: string | number) => void
   onRemoveRow?: (idx: number) => void
+  onDuplicateRow?: (idx: number) => void
   onReorder?: (newRows: Material[]) => void
   onRenameCategory?: (oldName: string, newName: string) => void
   onDeleteCategory?: (catName: string) => void
@@ -1246,7 +1331,7 @@ function MaterialsTable({
           const catCosto = group.items.reduce((s, { row: r }) => s + r.cantidad * r.costo_dmkt_unitario, 0)
           const catPrecio = group.items.reduce((s, { row: r }) => s + r.cantidad * r.precio_cliente_unitario, 0)
           return (
-            <Fragment key={`cat-${group.categoria}`}>
+            <Fragment key={`cat-${gi}-${group.categoria}`}>
               <SortableCategoryHeader
                 id={`cat-${gi}`}
                 group={group}
@@ -1268,7 +1353,7 @@ function MaterialsTable({
               />
               {/* Items (hidden if collapsed) */}
               {!isCollapsed && group.items.map(({ row, idx }) => (
-                <SortableRow key={`row-${idx}`} id={`row-${idx}`} row={row} idx={idx} onUpdateRow={onUpdateRow} onRemoveRow={onRemoveRow} readOnly={readOnly} selected={selectedRows?.has(idx)} onToggleSelect={onToggleRow} />
+                <SortableRow key={`row-${idx}`} id={`row-${idx}`} row={row} idx={idx} onUpdateRow={onUpdateRow} onRemoveRow={onRemoveRow} onDuplicateRow={onDuplicateRow} readOnly={readOnly} selected={selectedRows?.has(idx)} onToggleSelect={onToggleRow} />
               ))}
               {/* Subtotal */}
               {!isCollapsed && (
@@ -1375,7 +1460,7 @@ interface CatalogImage {
   naturalH: number
 }
 
-function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotation }: { project: Project; onUpdate: (p: Project) => void; onQuotationGenerated?: () => void; onSendToQuotation?: (items: QuotationItem[]) => void }) {
+function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotation }: { project: Project; onUpdate: (p: Project) => void; onQuotationGenerated?: () => void; onSendToQuotation?: (quotationId: number) => void }) {
   const [rows, setRows] = useState<Material[]>(normalizeMaterials(project.materiales ?? []))
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -1384,17 +1469,21 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
   const [lastSaved, setLastSaved] = useState<string | null>(null)
   const printRef = useRef<HTMLDivElement>(null)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const projectRef = useRef(project)
+  const onUpdateRef = useRef(onUpdate)
+  projectRef.current = project
+  onUpdateRef.current = onUpdate
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false)
 
   // Selection state
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set())
-  const toggleRow = (idx: number) => {
+  const toggleRow = useCallback((idx: number) => {
     setSelectedRows((prev) => {
       const next = new Set(prev)
       next.has(idx) ? next.delete(idx) : next.add(idx)
       return next
     })
-  }
+  }, [])
   const toggleCategory = (cat: string) => {
     const catIndices = rows.map((r, i) => ({ r, i })).filter(({ r }) => r.categoria === cat).map(({ i }) => i)
     const allSelected = catIndices.every((i) => selectedRows.has(i))
@@ -1407,6 +1496,30 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
   const toggleAll = () => {
     const allSelected = rows.length > 0 && rows.every((_, i) => selectedRows.has(i))
     setSelectedRows(allSelected ? new Set() : new Set(rows.map((_, i) => i)))
+  }
+
+  // Quotation confirmation: items to confirm before creating
+  const [quotationConfirmItems, setQuotationConfirmItems] = useState<QuotationItem[] | null>(null)
+  const [creatingQuotation, setCreatingQuotation] = useState(false)
+
+  const confirmCreateQuotation = async (items: QuotationItem[]) => {
+    if (!onSendToQuotation) return
+    setCreatingQuotation(true)
+    try {
+      const res = await cotizacionesApi.create({
+        proyecto_id: project.id,
+        nombre: `Cotización desde costeo`,
+        items,
+      })
+      const q = res.data as { id: number }
+      setQuotationConfirmItems(null)
+      toast.success(`Cotización creada con ${items.length} conceptos`)
+      onSendToQuotation(q.id)
+    } catch {
+      toast.error('Error al crear cotización')
+    } finally {
+      setCreatingQuotation(false)
+    }
   }
 
   // Bulk margin modal
@@ -1426,7 +1539,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
 
   // "Enviar a proveedor" modal state
   const [showSendModal, setShowSendModal] = useState(false)
-  const [sendSupplier, setSendSupplier] = useState({ nombre: '', email: '', whatsapp: '' })
+  const [sendSupplier, setSendSupplier] = useState({ nombre: '', email: '', telefono: '' })
   const [catalogImages, setCatalogImages] = useState<CatalogImage[]>([])
   const [catalogCols, setCatalogCols] = useState(2)
   const [catalogRows, setCatalogRows] = useState(3)
@@ -1438,7 +1551,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
   const openSendModal = () => {
     setShowSendModal(true)
     setCatalogImages([])
-    setSendSupplier({ nombre: '', email: '', whatsapp: '' })
+    setSendSupplier({ nombre: '', email: '', telefono: '' })
     // Load project images
     setLoadingMedia(true)
     mediaApi.list({ entity_type: 'project', entity_id: project.id, tipo: 'image' }).then((res) => {
@@ -1550,7 +1663,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
     const { selRows, catMap } = getSelectedCatMap()
     const today = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })
     const supplierName = sendSupplier.nombre
-    const supplierContact = [sendSupplier.email, sendSupplier.whatsapp].filter(Boolean).join(' | ')
+    const supplierContact = [sendSupplier.email, sendSupplier.telefono].filter(Boolean).join(' | ')
 
     let tableRows = ''
     let rowNum = 0
@@ -1564,24 +1677,15 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
 
     let catalogHtml = ''
     if (catalogImages.length > 0) {
-      const perPage = catalogCols * catalogRows
+      const perPage = catalogRows || 3
       const totalPages = Math.ceil(catalogImages.length / perPage)
       for (let p = 0; p < totalPages; p++) {
         const pageImages = catalogImages.slice(p * perPage, (p + 1) * perPage)
         let cells = ''
         for (const img of pageImages) {
-          cells += `<div class="catalog-cell">
-            <img src="${img.dataUrl}" />
-            <div class="caption">
-              <div class="img-title">${img.title}</div>
-              ${img.description ? `<div class="img-desc">${img.description}</div>` : ''}
-            </div>
-          </div>`
+          cells += `<div class="catalog-item"><img src="${img.dataUrl}" /><div class="item-content"><div class="img-title">${img.title}</div>${img.description ? `<div class="img-desc">${img.description}</div>` : ''}</div></div>`
         }
-        catalogHtml += `<div class="catalog-page">
-          <div class="catalog-header">Catálogo de Imágenes — Página ${p + 1} de ${totalPages}</div>
-          <div class="catalog-grid" style="grid-template-columns: repeat(${catalogCols}, 1fr);">${cells}</div>
-        </div>`
+        catalogHtml += `<div class="catalog-page"><div class="catalog-header">Catálogo de Imágenes — Página ${p + 1} de ${totalPages}</div>${cells}</div>`
       }
     }
 
@@ -1611,12 +1715,13 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
   .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; text-align: center; }
   .catalog-page { margin-top: 32px; padding-top: 20px; border-top: 2px solid #e2e8f0; }
   .catalog-header { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 12px; border-bottom: 2px solid #d4af37; padding-bottom: 6px; }
-  .catalog-grid { display: grid; gap: 10px; }
-  .catalog-cell { border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; }
-  .catalog-cell img { width: 100%; height: auto; display: block; }
-  .caption { padding: 5px 7px; background: #f8fafc; }
-  .img-title { font-weight: 600; font-size: 10px; color: #1e293b; }
-  .img-desc { font-size: 9px; color: #64748b; margin-top: 1px; }
+  .catalog-item { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 10px; min-height: 120px; }
+  .catalog-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .item-content { padding: 12px 14px; border-left: 1px solid #e2e8f0; }
+  .img-title { font-weight: 700; font-size: 12px; color: #0f172a; margin-bottom: 6px; }
+  .img-desc { font-size: 10px; color: #334155; line-height: 1.6; }
+  .img-desc p { margin: 0 0 6px; } .img-desc ul, .img-desc ol { margin: 0 0 6px; padding-left: 18px; }
+  .img-desc li { margin-bottom: 2px; } .img-desc strong { font-weight: 700; } .img-desc em { font-style: italic; }
 </style></head><body>
   <div class="header">
     <div><h1>Solicitud de Cotización</h1><h2>${project.nombre} — ${project.cliente_nombre ?? ''}</h2></div>
@@ -1644,7 +1749,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
     doc.write(buildPreviewHtml())
     doc.close()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showSendModal, sendSupplier.nombre, sendSupplier.email, sendSupplier.whatsapp, selectedRows, catalogImages, catalogCols, catalogRows, generalNote])
+  }, [showSendModal, sendSupplier.nombre, sendSupplier.email, sendSupplier.telefono, selectedRows, catalogImages, catalogCols, catalogRows, generalNote])
 
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const loadImageAsDataUrl = (url: string): Promise<string> =>
@@ -1673,7 +1778,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
 
     const today = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })
     const supplierName = sendSupplier.nombre
-    const supplierContact = [sendSupplier.email, sendSupplier.whatsapp].filter(Boolean).join(' | ')
+    const supplierContact = [sendSupplier.email, sendSupplier.telefono].filter(Boolean).join(' | ')
 
     // Header
     let y = margin
@@ -1780,10 +1885,49 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
 
     // Catalog pages
     if (catalogImages.length > 0) {
-      const perPage = catalogCols * catalogRows
+      const perPage = catalogRows || 3
       const totalPages = Math.ceil(catalogImages.length / perPage)
-      const gap = 4
-      const captionH = 10
+      const gap = 6
+      const halfW = contentW / 2
+
+      // Rich text renderer for PDF
+      const renderRich = (html: string, x: number, startY: number, maxW: number): number => {
+        let ry = startY
+        const lh = 3.5
+        const div = document.createElement('div')
+        div.innerHTML = html
+        const walk = (node: Node, bold: boolean, italic: boolean, pfx: string) => {
+          if (node.nodeType === 3) {
+            const t = (node.textContent ?? '').replace(/\s+/g, ' ')
+            if (!t.trim()) return
+            doc.setFont('helvetica', bold ? 'bold' : italic ? 'italic' : 'normal')
+            const full = pfx ? `${pfx} ${t.trim()}` : t.trim()
+            const lines = doc.splitTextToSize(full, pfx ? maxW - 4 : maxW)
+            for (const line of lines) {
+              if (ry > pageH - 15) { doc.addPage(); ry = margin }
+              doc.text(line, pfx ? x + 4 : x, ry)
+              ry += lh
+            }
+            return
+          }
+          if (node.nodeType !== 1) return
+          const el = node as Element
+          const tag = el.tagName.toLowerCase()
+          const b = bold || tag === 'strong' || tag === 'b'
+          const i = italic || tag === 'em' || tag === 'i'
+          if (tag === 'ul' || tag === 'ol') {
+            let idx = 0
+            el.childNodes.forEach((c) => { if ((c as Element).tagName?.toLowerCase() === 'li') { idx++; walk(c, b, i, tag === 'ol' ? `${idx}.` : '•') } })
+            ry += 1; return
+          }
+          if (tag === 'br') { ry += lh; return }
+          el.childNodes.forEach((c) => walk(c, b, i, pfx))
+          if (['p', 'div', 'li'].includes(tag)) ry += 1
+        }
+        doc.setFontSize(8); doc.setTextColor(gray)
+        walk(div, false, false, '')
+        return ry
+      }
 
       for (let p = 0; p < totalPages; p++) {
         doc.addPage()
@@ -1796,50 +1940,32 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
         doc.setDrawColor(gold)
         doc.setLineWidth(0.6)
         doc.line(margin, cy, pageW - margin, cy)
-        cy += 6
+        cy += 8
 
         const pageImages = catalogImages.slice(p * perPage, (p + 1) * perPage)
-        const cellW = (contentW - gap * (catalogCols - 1)) / catalogCols
-        const imgDrawW = cellW - 1
-
-        for (let idx = 0; idx < pageImages.length; idx++) {
-          const img = pageImages[idx]
-          const col = idx % catalogCols
+        for (const img of pageImages) {
+          const imgDrawW = halfW - 2
           const ratio = img.naturalH / img.naturalW
-          const imgH = imgDrawW * ratio
-          const cellH = imgH + captionH + 1
-          const rowIdx = Math.floor(idx / catalogCols)
-
-          // Sum heights of previous rows
-          let iy = cy
-          for (let pr = 0; pr < rowIdx; pr++) {
-            const prStart = pr * catalogCols
-            const prEnd = Math.min(prStart + catalogCols, pageImages.length)
-            let prMaxH = 0
-            for (let pri = prStart; pri < prEnd; pri++) {
-              const prImg = pageImages[pri]
-              prMaxH = Math.max(prMaxH, imgDrawW * (prImg.naturalH / prImg.naturalW) + captionH + 1)
-            }
-            iy += prMaxH + gap
-          }
-
-          const cx = margin + col * (cellW + gap)
-          doc.setDrawColor('#e2e8f0')
-          doc.setLineWidth(0.3)
-          doc.roundedRect(cx, iy, cellW, cellH, 1.5, 1.5, 'S')
-          try { doc.addImage(img.dataUrl, 'JPEG', cx + 0.5, iy + 0.5, imgDrawW, imgH) } catch { /* skip */ }
-          doc.setFillColor('#f8fafc')
-          doc.rect(cx, iy + imgH + 1, cellW, captionH, 'F')
-          doc.setFontSize(8)
-          doc.setFont('helvetica', 'bold')
-          doc.setTextColor(dark)
-          doc.text(img.title || '', cx + 2, iy + imgH + 1 + 4, { maxWidth: cellW - 4 })
-          if (img.description) {
-            doc.setFont('helvetica', 'normal')
-            doc.setFontSize(7)
-            doc.setTextColor(gray)
-            doc.text(img.description, cx + 2, iy + imgH + 1 + 8, { maxWidth: cellW - 4 })
-          }
+          const finalImgH = Math.min(imgDrawW * ratio, 70)
+          const finalImgW = finalImgH / ratio
+          const rowH = finalImgH + 4
+          if (cy + rowH > pageH - 20) { doc.addPage(); cy = margin }
+          doc.setDrawColor('#e2e8f0'); doc.setLineWidth(0.3)
+          doc.roundedRect(margin, cy, contentW, rowH, 1.5, 1.5, 'S')
+          const dividerX = margin + halfW
+          doc.line(dividerX, cy, dividerX, cy + rowH)
+          const imgX = margin + (halfW - finalImgW) / 2
+          const imgY = cy + (rowH - finalImgH) / 2
+          try { doc.addImage(img.dataUrl, 'JPEG', imgX, imgY, finalImgW, finalImgH) } catch { /* skip */ }
+          const textX = dividerX + 4
+          const textW = halfW - 8
+          let ty = cy + 5
+          doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(dark)
+          const titleLines = doc.splitTextToSize(img.title || '', textW)
+          doc.text(titleLines, textX, ty)
+          ty += titleLines.length * 4.5 + 2
+          if (img.description) { ty = renderRich(img.description, textX, ty, textW) }
+          cy += rowH + gap
         }
       }
     }
@@ -1863,13 +1989,6 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
     }
   }
 
-  const handleWhatsApp = () => {
-    if (!sendSupplier.whatsapp) return
-    const msg = encodeURIComponent(buildMessage())
-    window.open(`https://wa.me/${sendSupplier.whatsapp}?text=${msg}`, '_blank')
-    setShowSendModal(false)
-  }
-
   const handleEmail = () => {
     if (!sendSupplier.email) return
     const subject = encodeURIComponent(`Cotizacion — ${project.nombre}`)
@@ -1878,24 +1997,27 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
     setShowSendModal(false)
   }
 
-  // Auto-save: 2 seconds after last change
-  const doAutoSave = useCallback(async (data: Material[]) => {
-    try {
-      await projectsApi.update(project.id, { materiales: data })
-      onUpdate({ ...project, materiales: data })
-      setDirty(false)
-      setLastSaved(new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))
-    } catch {
-      // Silent fail — user can still manual save
-    }
-  }, [project, onUpdate])
+  // Auto-save: debounced, uses refs to avoid dependency churn
+  const rowsRef = useRef(rows)
+  rowsRef.current = rows
+  const dirtyRef = useRef(dirty)
+  dirtyRef.current = dirty
 
-  useEffect(() => {
-    if (!dirty) return
+  const scheduleAutoSave = useCallback(() => {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
-    autoSaveTimer.current = setTimeout(() => doAutoSave(rows), 2000)
-    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current) }
-  }, [rows, dirty, doAutoSave])
+    autoSaveTimer.current = setTimeout(async () => {
+      if (!dirtyRef.current) return
+      try {
+        const data = rowsRef.current
+        await projectsApi.update(projectRef.current.id, { materiales: data })
+        onUpdateRef.current({ ...projectRef.current, materiales: data })
+        setDirty(false)
+        setLastSaved(new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))
+      } catch {
+        // Silent fail — user can still manual save
+      }
+    }, 2000)
+  }, [])
 
   const [showGenModal, setShowGenModal] = useState(false)
   const [genIncludeProposal, setGenIncludeProposal] = useState(!!project.propuesta_texto)
@@ -2177,29 +2299,48 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
   const handlePrint = () => handlePrintRows(rows)
   const handlePrintSelected = () => handlePrintRows(rows.filter((_, i) => selectedRows.has(i)))
 
-  const updateRow = (idx: number, field: keyof Material, value: string | number) => {
+  const updateRow = useCallback((idx: number, field: keyof Material, value: string | number) => {
     setRows((prev) => {
       const next = [...prev]
       const row = { ...next[idx], [field]: value }
+      // Cross-field recalculations
       if (field === 'costo_dmkt_unitario') {
         const pct = row.margen_porcentaje ?? 30
         row.precio_cliente_unitario = Math.round(Number(value) * (1 + pct / 100) * 100) / 100
+      } else if (field === 'margen_porcentaje') {
+        row.precio_cliente_unitario = Math.round(row.costo_dmkt_unitario * (1 + Number(value) / 100) * 100) / 100
+      } else if (field === 'precio_cliente_unitario' && row.costo_dmkt_unitario > 0) {
+        row.margen_porcentaje = Math.round((Number(value) / row.costo_dmkt_unitario - 1) * 10000) / 100
       }
       next[idx] = row
       return next
     })
     setDirty(true)
-  }
+    scheduleAutoSave()
+  }, [scheduleAutoSave])
 
-  const removeRow = (idx: number) => {
+  const removeRow = useCallback((idx: number) => {
     setRows((prev) => prev.filter((_, i) => i !== idx))
     setDirty(true)
-  }
+    scheduleAutoSave()
+  }, [scheduleAutoSave])
 
-  const handleReorder = (newRows: Material[]) => {
+  const duplicateRow = useCallback((idx: number) => {
+    setRows((prev) => {
+      const clone = { ...prev[idx] }
+      const next = [...prev]
+      next.splice(idx + 1, 0, clone)
+      return next
+    })
+    setDirty(true)
+    scheduleAutoSave()
+  }, [scheduleAutoSave])
+
+  const handleReorder = useCallback((newRows: Material[]) => {
     setRows(newRows)
     setDirty(true)
-  }
+    scheduleAutoSave()
+  }, [scheduleAutoSave])
 
   const addRow = () => {
     const lastCat = rows.length > 0 ? rows[rows.length - 1].categoria : 'GENERAL'
@@ -2476,10 +2617,10 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
                       setSendSupplier((prev) => ({ ...prev, nombre: name }))
                       if (name) {
                         proveedoresApi.list({ buscar: name, limit: 1 }).then((res) => {
-                          const data = res.data as { elementos: Array<{ nombre: string; email: string | null; whatsapp: string | null }> }
+                          const data = res.data as { elementos: Array<{ nombre: string; email: string | null; telefono: string | null }> }
                           const match = data.elementos.find((s) => s.nombre === name)
                           if (match) {
-                            setSendSupplier({ nombre: name, email: match.email ?? '', whatsapp: match.whatsapp ?? '' })
+                            setSendSupplier({ nombre: name, email: match.email ?? '', telefono: match.telefono ?? '' })
                           }
                         }).catch(() => {})
                       }
@@ -2499,13 +2640,13 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">WhatsApp</label>
+                    <label className="text-xs text-muted-foreground">Teléfono</label>
                     <input
                       type="tel"
-                      value={sendSupplier.whatsapp}
-                      onChange={(e) => setSendSupplier((prev) => ({ ...prev, whatsapp: e.target.value }))}
+                      value={sendSupplier.telefono}
+                      onChange={(e) => setSendSupplier((prev) => ({ ...prev, telefono: e.target.value }))}
                       className="mt-0.5 w-full rounded-lg border border-border bg-background-elevated px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                      placeholder="521234567890"
+                      placeholder="55 1234 5678"
                     />
                   </div>
                 </div>
@@ -2534,24 +2675,14 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
                     )}
                   </label>
                   <div className="flex items-center gap-3">
-                    {/* Grid config */}
                     <div className="flex items-center gap-1.5 text-sm">
-                      <span className="text-xs text-muted-foreground">Grid</span>
+                      <span className="text-xs text-muted-foreground">Por página</span>
                       <input
                         type="number"
                         min={1}
-                        max={4}
-                        value={catalogCols}
-                        onChange={(e) => setCatalogCols(Math.max(1, Math.min(4, Number(e.target.value))))}
-                        className="w-10 rounded border border-border bg-background-elevated px-1.5 py-0.5 text-center text-xs outline-none focus:ring-2 focus:ring-primary/20"
-                      />
-                      <span className="text-muted-foreground text-xs">×</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={5}
+                        max={6}
                         value={catalogRows}
-                        onChange={(e) => setCatalogRows(Math.max(1, Math.min(5, Number(e.target.value))))}
+                        onChange={(e) => setCatalogRows(Math.max(1, Math.min(6, Number(e.target.value))))}
                         className="w-10 rounded border border-border bg-background-elevated px-1.5 py-0.5 text-center text-xs outline-none focus:ring-2 focus:ring-primary/20"
                       />
                     </div>
@@ -2621,34 +2752,32 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
 
                 {/* Selected images with title/description */}
                 {catalogImages.length > 0 && (
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-3 space-y-3">
                     <p className="text-xs font-medium text-muted-foreground">Seleccionadas ({catalogImages.length})</p>
                     {catalogImages.map((img) => (
-                      <div key={img.mediaId} className="flex gap-2 items-start p-2 rounded-md border border-border bg-muted/20">
-                        <img src={img.url} alt={img.title} className="w-10 h-10 rounded object-cover shrink-0" />
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <input
-                            type="text"
-                            value={img.title}
-                            onChange={(e) => updateCatalogImage(img.mediaId, 'title', e.target.value)}
-                            className="w-full text-xs font-medium rounded border border-border bg-background-elevated px-2 py-1 outline-none focus:ring-1 focus:ring-primary/20"
-                            placeholder="Título"
-                          />
-                          <input
-                            type="text"
-                            value={img.description}
-                            onChange={(e) => updateCatalogImage(img.mediaId, 'description', e.target.value)}
-                            className="w-full text-xs rounded border border-border bg-background-elevated px-2 py-1 outline-none focus:ring-1 focus:ring-primary/20"
-                            placeholder="Descripción (opcional)"
-                          />
+                      <div key={img.mediaId} className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/10 overflow-hidden">
+                        <div className="relative aspect-[4/3] bg-black/5">
+                          <img src={img.url} alt={img.title} className="w-full h-full object-cover" />
+                          <button type="button" onClick={() => removeCatalogImage(img.mediaId)}
+                            className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/50 text-white hover:bg-destructive transition-colors cursor-pointer"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeCatalogImage(img.mediaId)}
-                          className="p-1 text-muted-foreground hover:text-destructive transition-colors cursor-pointer shrink-0"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="py-3 pr-3 flex flex-col gap-2">
+                          <input type="text" value={img.title}
+                            onChange={(e) => updateCatalogImage(img.mediaId, 'title', e.target.value)}
+                            className="w-full text-sm font-semibold rounded border border-border bg-background px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-primary/20"
+                            placeholder="Título de la imagen"
+                          />
+                          <div className="flex-1 min-h-0 overflow-y-auto rounded border border-border bg-background">
+                            <RichTextEditor
+                              value={img.description}
+                              onChange={(html) => updateCatalogImage(img.mediaId, 'description', html)}
+                              placeholder="Descripción de la imagen..."
+                            />
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2684,14 +2813,6 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
                 onClick={handleEmail}
               >
                 <Mail className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                className="gap-2"
-                disabled={!sendSupplier.whatsapp}
-                onClick={handleWhatsApp}
-              >
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
               </Button>
               <Button variant="ghost" onClick={() => setShowSendModal(false)}>
                 Cancelar
@@ -2745,13 +2866,12 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
                     {onSendToQuotation && (
                       <DropdownMenuItem
                         onClick={() => {
-                          const items: QuotationItem[] = rows.map((m) => ({
+                          setQuotationConfirmItems(rows.map((m) => ({
                             concepto: m.concepto,
                             cantidad: m.cantidad,
                             precio_unitario: m.precio_cliente_unitario,
                             categoria: m.categoria,
-                          }))
-                          onSendToQuotation(items)
+                          })))
                         }}
                         className="gap-2 cursor-pointer"
                       >
@@ -2846,15 +2966,14 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
               size="sm"
               className="gap-2"
               onClick={() => {
-                const items: QuotationItem[] = rows
+                setQuotationConfirmItems(rows
                   .filter((_, i) => selectedRows.has(i))
                   .map((m) => ({
                     concepto: m.concepto,
                     cantidad: m.cantidad,
                     precio_unitario: m.precio_cliente_unitario,
                     categoria: m.categoria,
-                  }))
-                onSendToQuotation(items)
+                  })))
               }}
             >
               <FileText className="h-3.5 w-3.5" />
@@ -2902,6 +3021,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
             rows={rows}
             onUpdateRow={updateRow}
             onRemoveRow={removeRow}
+            onDuplicateRow={duplicateRow}
             onReorder={handleReorder}
             onRenameCategory={renameCategory}
             onDeleteCategory={deleteCategory}
@@ -2911,6 +3031,16 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
             onToggleAll={toggleAll}
           />
         </div>
+      )}
+
+      {/* Quotation confirmation modal */}
+      {quotationConfirmItems && quotationConfirmItems.length > 0 && (
+        <PendingCosteoConfirm
+          items={quotationConfirmItems}
+          loading={creatingQuotation}
+          onConfirm={confirmCreateQuotation}
+          onCancel={() => setQuotationConfirmItems(null)}
+        />
       )}
     </div>
   )
@@ -2940,29 +3070,29 @@ function buildQuotationPreviewHtml(q: Quotation, project: Project): string {
   let rowNum = 0
   for (const [cat, catItems] of groups) {
     tableRows += `<tr class="cat-row"><td colspan="4">${cat}</td></tr>`
+    let catSub = 0
     for (const item of catItems) {
       rowNum++
+      const lineTotal = item.cantidad * item.precio_unitario
+      catSub += lineTotal
       tableRows += `<tr><td class="num">${rowNum}</td><td style="white-space:pre-wrap">${item.concepto}</td><td class="center">${item.cantidad}</td><td class="right">${fmtMXN(item.precio_unitario)}</td></tr>`
     }
+    tableRows += `<tr class="cat-subtotal"><td colspan="3" style="text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.05em">Subtotal ${cat}</td><td class="right" style="font-weight:700">${fmtMXN(catSub)}</td></tr>`
   }
 
-  const sub = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
-  const disc = sub * (q.descuento_porcentaje / 100)
-  const subAfterDisc = sub - disc
-  const ivaAmount = subAfterDisc * ((q.iva_porcentaje ?? 16) / 100)
-  const tot = subAfterDisc + ivaAmount
+  const tot = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
 
   let catalogHtml = ''
   if (imagenes.length > 0) {
-    const perPage = q.imagen_cols * q.imagen_rows
+    const perPage = q.imagen_rows || 3
     const totalPages = Math.ceil(imagenes.length / perPage)
     for (let p = 0; p < totalPages; p++) {
       const pageImages = imagenes.slice(p * perPage, (p + 1) * perPage)
       let cells = ''
       for (const img of pageImages) {
-        cells += `<div class="catalog-cell"><img src="${img.dataUrl}" /><div class="caption"><div class="img-title">${img.title}</div>${img.description ? `<div class="img-desc">${img.description}</div>` : ''}</div></div>`
+        cells += `<div class="catalog-item"><img src="${img.dataUrl}" /><div class="item-content"><div class="img-title">${img.title}</div>${img.description ? `<div class="img-desc">${img.description}</div>` : ''}</div></div>`
       }
-      catalogHtml += `<div class="catalog-page"><div class="catalog-header">Catálogo de Imágenes — Página ${p + 1} de ${totalPages}</div><div class="catalog-grid" style="grid-template-columns: repeat(${q.imagen_cols}, 1fr);">${cells}</div></div>`
+      catalogHtml += `<div class="catalog-page"><div class="catalog-header">Catálogo de Imágenes — Página ${p + 1} de ${totalPages}</div>${cells}</div>`
     }
   }
 
@@ -2984,6 +3114,7 @@ function buildQuotationPreviewHtml(q: Quotation, project: Project): string {
   thead th { background: #f8fafc; border-bottom: 2px solid #cbd5e1; padding: 6px 8px; text-align: left; font-weight: 600; color: #475569; font-size: 10px; text-transform: uppercase; }
   tbody td { padding: 5px 8px; border-bottom: 1px solid #e2e8f0; }
   .cat-row td { background: #f1f5f9; font-weight: 700; text-transform: uppercase; font-size: 10px; color: #334155; }
+  .cat-subtotal td { background: #fafbfc; font-size: 10px; color: #475569; border-bottom: 2px solid #e2e8f0; }
   .num { text-align: center; color: #94a3b8; width: 30px; }
   .center { text-align: center; }
   .right { text-align: right; }
@@ -2997,12 +3128,18 @@ function buildQuotationPreviewHtml(q: Quotation, project: Project): string {
   .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; text-align: center; }
   .catalog-page { margin-top: 32px; padding-top: 20px; border-top: 2px solid #e2e8f0; }
   .catalog-header { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 12px; border-bottom: 2px solid #d4af37; padding-bottom: 6px; }
-  .catalog-grid { display: grid; gap: 10px; }
-  .catalog-cell { border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; }
-  .catalog-cell img { width: 100%; height: auto; display: block; }
-  .caption { padding: 5px 7px; background: #f8fafc; }
-  .img-title { font-weight: 600; font-size: 10px; color: #1e293b; }
-  .img-desc { font-size: 9px; color: #64748b; margin-top: 1px; }
+  .catalog-item { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 10px; min-height: 120px; }
+  .catalog-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .item-content { padding: 12px 14px; border-left: 1px solid #e2e8f0; }
+  .img-title { font-weight: 700; font-size: 12px; color: #0f172a; margin-bottom: 6px; }
+  .img-desc { font-size: 10px; color: #334155; line-height: 1.6; }
+  .img-desc p { margin: 0 0 6px; }
+  .img-desc ul, .img-desc ol { margin: 0 0 6px; padding-left: 18px; }
+  .img-desc li { margin-bottom: 2px; }
+  .img-desc strong, .img-desc b { font-weight: 700; }
+  .img-desc em, .img-desc i { font-style: italic; }
+  .img-desc h1, .img-desc h2, .img-desc h3 { font-weight: 700; margin: 0 0 4px; }
+  .img-desc h1 { font-size: 13px; } .img-desc h2 { font-size: 12px; } .img-desc h3 { font-size: 11px; }
 </style></head><body>
   <div class="header">
     <div><h1>Cotización ${q.codigo}</h1><h2>${q.nombre} — ${project.cliente_nombre ?? ''}</h2></div>
@@ -3017,9 +3154,6 @@ function buildQuotationPreviewHtml(q: Quotation, project: Project): string {
   ${q.texto_intro ? `<div class="intro">${q.texto_intro}</div>` : ''}
   <table><thead><tr><th style="width:30px;text-align:center">#</th><th>Concepto</th><th style="width:70px;text-align:center">Cantidad</th><th style="width:100px;text-align:right">Precio Unit.</th></tr></thead><tbody>${tableRows}</tbody></table>
   <div class="totals">
-    <div class="line"><span class="label">Subtotal:</span><span class="amount">${fmtMXN(sub)}</span></div>
-    ${q.descuento_porcentaje > 0 ? `<div class="line"><span class="label">Descuento (${q.descuento_porcentaje}%):</span><span class="amount">-${fmtMXN(disc)}</span></div>` : ''}
-    ${(q.iva_porcentaje ?? 16) > 0 ? `<div class="line"><span class="label">IVA (${q.iva_porcentaje ?? 16}%):</span><span class="amount">+${fmtMXN(ivaAmount)}</span></div>` : ''}
     <div class="line total"><span class="label">Total:</span><span class="amount">${fmtMXN(tot)}</span></div>
   </div>
   ${q.texto_terminos ? `<div class="terms"><strong>Términos y Condiciones:</strong>${q.texto_terminos}</div>` : ''}
@@ -3129,10 +3263,17 @@ async function generateQuotationPdfBlob(q: Quotation, project: Project): Promise
       colSpan: 4,
       styles: { fontStyle: 'bold' as const, fillColor: '#f1f5f9', textColor: '#334155', fontSize: 9 },
     }])
+    let catSub = 0
     for (const item of catItems) {
       rowNum++
+      catSub += item.cantidad * item.precio_unitario
       tableBody.push([String(rowNum), item.concepto, String(item.cantidad), fmtMXN(item.precio_unitario)])
     }
+    tableBody.push([{
+      content: `Subtotal ${cat}`,
+      colSpan: 3,
+      styles: { halign: 'right' as const, fontSize: 8, textColor: '#475569', fontStyle: 'bold' as const },
+    }, { content: fmtMXN(catSub), styles: { halign: 'right' as const, fontStyle: 'bold' as const, fontSize: 9 } }])
   }
   autoTable(doc, {
     startY: y,
@@ -3151,29 +3292,12 @@ async function generateQuotationPdfBlob(q: Quotation, project: Project): Promise
   const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6
   y = finalY
 
-  // Totals
-  const subtotal = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
-  const descuento = subtotal * (q.descuento_porcentaje / 100)
-  const subAfterDisc = subtotal - descuento
-  const ivaPct = q.iva_porcentaje ?? 16
-  const ivaAmt = subAfterDisc * (ivaPct / 100)
-  const total = subAfterDisc + ivaAmt
-  doc.setFontSize(10)
-  doc.setTextColor(dark)
-  doc.setFont('helvetica', 'normal')
+  // Total
+  const total = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
   const rightX = pageW - margin
-  doc.text(`Subtotal: ${fmtMXN(subtotal)}`, rightX, y, { align: 'right' })
-  y += 5
-  if (q.descuento_porcentaje > 0) {
-    doc.text(`Descuento (${q.descuento_porcentaje}%): -${fmtMXN(descuento)}`, rightX, y, { align: 'right' })
-    y += 5
-  }
-  if (ivaPct > 0) {
-    doc.text(`IVA (${ivaPct}%): +${fmtMXN(ivaAmt)}`, rightX, y, { align: 'right' })
-    y += 5
-  }
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
+  doc.setTextColor(dark)
   doc.text(`Total: ${fmtMXN(total)}`, rightX, y, { align: 'right' })
   y += 8
 
@@ -3201,12 +3325,61 @@ async function generateQuotationPdfBlob(q: Quotation, project: Project): Promise
   doc.setTextColor(lightGray)
   doc.text(`Generado por DistritoMKT CRM — ${today}`, pageW / 2, pageH - 10, { align: 'center' })
 
-  // Catalog pages
+  // Catalog pages — side-by-side layout (image left 50%, title+description right 50%)
   if (imagenes.length > 0) {
-    const perPage = q.imagen_cols * q.imagen_rows
+    const perPage = q.imagen_rows || 3
     const totalPages = Math.ceil(imagenes.length / perPage)
-    const gap = 4
-    const captionH = 10
+    const gap = 6
+    const halfW = contentW / 2
+
+    // Helper: render HTML rich text to jsPDF (supports bold, italic, lists, paragraphs)
+    const renderRichText = (html: string, x: number, startY: number, maxW: number): number => {
+      let y = startY
+      const lineH = 3.5
+      // Parse HTML into blocks
+      const div = document.createElement('div')
+      div.innerHTML = html
+      const walk = (node: Node, isBold: boolean, isItalic: boolean, listPrefix: string) => {
+        if (node.nodeType === 3) { // text
+          const text = (node.textContent ?? '').replace(/\s+/g, ' ')
+          if (!text.trim()) return
+          const prefix = listPrefix
+          doc.setFont('helvetica', isBold ? 'bold' : isItalic ? 'italic' : 'normal')
+          const fullText = prefix ? `${prefix} ${text.trim()}` : text.trim()
+          const lines = doc.splitTextToSize(fullText, prefix ? maxW - 4 : maxW)
+          for (const line of lines) {
+            if (y > pageH - 15) { doc.addPage(); y = margin }
+            doc.text(line, prefix ? x + 4 : x, y)
+            y += lineH
+          }
+          return
+        }
+        if (node.nodeType !== 1) return
+        const el = node as Element
+        const tag = el.tagName.toLowerCase()
+        const bold = isBold || tag === 'strong' || tag === 'b'
+        const italic = isItalic || tag === 'em' || tag === 'i'
+        if (tag === 'ul' || tag === 'ol') {
+          let idx = 0
+          el.childNodes.forEach((child) => {
+            if ((child as Element).tagName?.toLowerCase() === 'li') {
+              idx++
+              const pfx = tag === 'ol' ? `${idx}.` : '•'
+              walk(child, bold, italic, pfx)
+            }
+          })
+          y += 1
+          return
+        }
+        if (tag === 'br') { y += lineH; return }
+        el.childNodes.forEach((child) => walk(child, bold, italic, listPrefix))
+        if (['p', 'div', 'h1', 'h2', 'h3', 'h4', 'li'].includes(tag)) y += 1
+      }
+      doc.setFontSize(8)
+      doc.setTextColor(gray)
+      walk(div, false, false, '')
+      return y
+    }
 
     for (let p = 0; p < totalPages; p++) {
       doc.addPage()
@@ -3219,49 +3392,51 @@ async function generateQuotationPdfBlob(q: Quotation, project: Project): Promise
       doc.setDrawColor(gold)
       doc.setLineWidth(0.6)
       doc.line(margin, cy, pageW - margin, cy)
-      cy += 6
+      cy += 8
 
       const pageImages = imagenes.slice(p * perPage, (p + 1) * perPage)
-      const cellW = (contentW - gap * (q.imagen_cols - 1)) / q.imagen_cols
-      const imgDrawW = cellW - 1
-
-      for (let idx = 0; idx < pageImages.length; idx++) {
-        const img = pageImages[idx]
-        const col = idx % q.imagen_cols
+      for (const img of pageImages) {
+        // Image always fills left half exactly
+        const imgDrawW = halfW - 2
         const ratio = img.naturalH / img.naturalW
         const imgH = imgDrawW * ratio
-        const cellH = imgH + captionH + 1
-        const rowIdx = Math.floor(idx / q.imagen_cols)
+        const maxImgH = (pageH - cy - 20) / (pageImages.length > 1 ? 1.5 : 1)
+        const finalImgH = Math.min(imgH, maxImgH, 70)
+        const finalImgW = finalImgH / ratio
+        const rowH = finalImgH + 4
 
-        let iy = cy
-        for (let pr = 0; pr < rowIdx; pr++) {
-          const prStart = pr * q.imagen_cols
-          const prEnd = Math.min(prStart + q.imagen_cols, pageImages.length)
-          let prMaxH = 0
-          for (let pri = prStart; pri < prEnd; pri++) {
-            const prImg = pageImages[pri]
-            prMaxH = Math.max(prMaxH, imgDrawW * (prImg.naturalH / prImg.naturalW) + captionH + 1)
-          }
-          iy += prMaxH + gap
-        }
+        if (cy + rowH > pageH - 20) { doc.addPage(); cy = margin }
 
-        const cx = margin + col * (cellW + gap)
+        // Border
         doc.setDrawColor('#e2e8f0')
         doc.setLineWidth(0.3)
-        doc.roundedRect(cx, iy, cellW, cellH, 1.5, 1.5, 'S')
-        try { doc.addImage(img.dataUrl, 'JPEG', cx + 0.5, iy + 0.5, imgDrawW, imgH) } catch { /* skip */ }
-        doc.setFillColor('#f8fafc')
-        doc.rect(cx, iy + imgH + 1, cellW, captionH, 'F')
-        doc.setFontSize(8)
+        doc.roundedRect(margin, cy, contentW, rowH, 1.5, 1.5, 'S')
+
+        // Vertical divider
+        const dividerX = margin + halfW
+        doc.setDrawColor('#e2e8f0')
+        doc.line(dividerX, cy, dividerX, cy + rowH)
+
+        // Image (left half, centered)
+        const imgX = margin + (halfW - finalImgW) / 2
+        const imgY = cy + (rowH - finalImgH) / 2
+        try { doc.addImage(img.dataUrl, 'JPEG', imgX, imgY, finalImgW, finalImgH) } catch { /* skip */ }
+
+        // Title + description (right half)
+        const textX = dividerX + 4
+        const textW = halfW - 8
+        let ty = cy + 5
+        doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(dark)
-        doc.text(img.title || '', cx + 2, iy + imgH + 1 + 4, { maxWidth: cellW - 4 })
+        const titleLines = doc.splitTextToSize(img.title || '', textW)
+        doc.text(titleLines, textX, ty)
+        ty += titleLines.length * 4.5 + 2
         if (img.description) {
-          doc.setFont('helvetica', 'normal')
-          doc.setFontSize(7)
-          doc.setTextColor(gray)
-          doc.text(img.description, cx + 2, iy + imgH + 1 + 8, { maxWidth: cellW - 4 })
+          ty = renderRichText(img.description, textX, ty, textW)
         }
+
+        cy += rowH + gap
       }
     }
   }
@@ -3269,9 +3444,8 @@ async function generateQuotationPdfBlob(q: Quotation, project: Project): Promise
   return doc.output('blob') as unknown as Blob
 }
 
-function QuotesTab({ project, pendingItemsRef, quotationIdParam, onCotizacionesChange }: {
+function QuotesTab({ project, quotationIdParam, onCotizacionesChange }: {
   project: Project
-  pendingItemsRef?: React.MutableRefObject<QuotationItem[] | null>
   quotationIdParam?: string
   onCotizacionesChange?: (list: Quotation[]) => void
 }) {
@@ -3308,29 +3482,7 @@ function QuotesTab({ project, pendingItemsRef, quotationIdParam, onCotizacionesC
       setCotizaciones(list)
       notifyParent(list)
 
-      // Consume pending items from costeo
-      const pending = pendingItemsRef?.current ?? null
-      if (pending && pending.length > 0) {
-        try {
-          const num = list.length + 1
-          const created = await cotizacionesApi.create({
-            proyecto_id: Number(projectId),
-            nombre: `Cotización v${num}`,
-            items: pending,
-          })
-          if (cancelled) return
-          if (pendingItemsRef) pendingItemsRef.current = null
-          const q = created.data as Quotation
-          const updated = [...list, q]
-          setCotizaciones(updated)
-          notifyParent(updated)
-          setEditingId(q.id)
-          navigate(`/proyectos/${projectId}/cotizaciones/${q.id}`, { replace: true })
-          toast.success(`Cotización creada con ${pending.length} items desde costeo`)
-        } catch {
-          if (!cancelled) toast.error('Error al crear cotización')
-        }
-      } else if (quotationIdParam === 'nueva' && !pending) {
+      if (quotationIdParam === 'nueva') {
         try {
           const num = list.length + 1
           const created = await cotizacionesApi.create({
@@ -3562,6 +3714,8 @@ function QuotesTab({ project, pendingItemsRef, quotationIdParam, onCotizacionesC
         />
       )}
 
+
+
       {cotizaciones.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-border bg-card">
           <div className="w-14 h-14 rounded-2xl bg-primary/5 flex items-center justify-center mb-4">
@@ -3603,8 +3757,7 @@ function QuotesTab({ project, pendingItemsRef, quotationIdParam, onCotizacionesC
             {cotizaciones.map((q) => {
               const items = q.items ?? []
               const sub = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
-              const afterDiscount = sub * (1 - (q.descuento_porcentaje ?? 0) / 100)
-              const totalWithDiscount = afterDiscount * (1 + (q.iva_porcentaje ?? 16) / 100)
+              const totalWithDiscount = sub
               return (
                 <div
                   key={q.id}
@@ -3627,9 +3780,6 @@ function QuotesTab({ project, pendingItemsRef, quotationIdParam, onCotizacionesC
                   </div>
                   <div className="flex items-baseline gap-2 mb-1">
                     <span className="text-base font-bold">{fmtMXN(totalWithDiscount)}</span>
-                    {q.descuento_porcentaje > 0 && (
-                      <span className="text-[11px] text-primary font-medium">-{q.descuento_porcentaje}%</span>
-                    )}
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-muted-foreground mb-2">
                     <span>{items.length} item{items.length !== 1 ? 's' : ''}</span>
@@ -3776,6 +3926,82 @@ function QuotesTab({ project, pendingItemsRef, quotationIdParam, onCotizacionesC
 // From Costeo Selector
 // ---------------------------------------------------------------------------
 
+function PendingCosteoConfirm({ items, loading, onConfirm, onCancel }: {
+  items: QuotationItem[]
+  loading?: boolean
+  onConfirm: (items: QuotationItem[]) => void
+  onCancel: () => void
+}) {
+  const groups: Map<string, QuotationItem[]> = new Map()
+  for (const item of items) {
+    const cat = item.categoria || 'General'
+    const arr = groups.get(cat) ?? []
+    arr.push(item)
+    groups.set(cat, arr)
+  }
+  const total = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
+      <div className="relative w-[95vw] max-w-2xl max-h-[80vh] rounded-xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <div>
+            <h3 className="text-lg font-semibold">Confirmar cotización desde costeo</h3>
+            <p className="text-sm text-muted-foreground">{items.length} concepto{items.length !== 1 ? 's' : ''} · Total: {fmtMXN(total)}</p>
+          </div>
+          <button onClick={onCancel} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/30 sticky top-0">
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Concepto</th>
+                <th className="text-right px-3 py-2 font-medium text-muted-foreground w-20">Cant.</th>
+                <th className="text-right px-3 py-2 font-medium text-muted-foreground w-28">Precio Unit.</th>
+                <th className="text-right px-3 py-2 font-medium text-muted-foreground w-28">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...groups.entries()].map(([cat, catItems], gi) => (
+                <Fragment key={`${gi}-${cat}`}>
+                  <tr className="bg-primary/5 border-t border-primary/20">
+                    <td colSpan={4} className="px-3 py-2">
+                      <span className="text-xs font-bold text-primary uppercase tracking-wider">{cat}</span>
+                      <span className="text-[10px] text-muted-foreground ml-2">({catItems.length})</span>
+                    </td>
+                  </tr>
+                  {catItems.map((item, i) => (
+                    <tr key={i} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                      <td className="px-3 py-1.5 whitespace-pre-wrap">{item.concepto}</td>
+                      <td className="px-3 py-1.5 text-right">{item.cantidad}</td>
+                      <td className="px-3 py-1.5 text-right">{fmtMXN(item.precio_unitario)}</td>
+                      <td className="px-3 py-1.5 text-right font-medium">{fmtMXN(item.cantidad * item.precio_unitario)}</td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="shrink-0 border-t border-border px-5 py-3 flex items-center justify-between">
+          <span className="text-sm font-semibold">Total: {fmtMXN(total)}</span>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={onCancel} disabled={loading}>Cancelar</Button>
+            <Button className="gap-2" onClick={() => onConfirm(items)} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              {loading ? 'Creando...' : 'Crear cotización'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 function FromCosteoSelector({
   materials,
   onClose,
@@ -3842,12 +4068,12 @@ function FromCosteoSelector({
               </tr>
             </thead>
             <tbody>
-              {groups.map((group) => {
+              {groups.map((group, gi) => {
                 const catIndices = group.items.map((x) => x.idx)
                 const allSel = catIndices.every((i) => selected.has(i))
                 const someSel = catIndices.some((i) => selected.has(i))
                 return (
-                  <Fragment key={group.categoria}>
+                  <Fragment key={`${gi}-${group.categoria}`}>
                     <tr className="bg-primary/5 border-t border-primary/20">
                       <td className="px-3 py-2">
                         <input
@@ -3926,7 +4152,7 @@ function QuotationEditor({
     items: quotation.items ?? [],
     imagenes: quotation.imagenes ?? [],
     texto_intro: quotation.texto_intro ?? '',
-    texto_terminos: quotation.texto_terminos ?? '',
+    texto_terminos: quotation.texto_terminos || 'La presente cotización tiene una validez de 15 días, no incluye IVA y se presenta en pesos mexicanos.',
     notas: quotation.notas ?? '',
     iva_porcentaje: quotation.iva_porcentaje ?? 16,
   })
@@ -3950,10 +4176,12 @@ function QuotationEditor({
     }).catch(() => setProjectMedia([])).finally(() => setLoadingMedia(false))
   }, [project.id])
 
-  // Sync back
+  // Sync back — use setTimeout to avoid setState-during-render
+  const onUpdateRef = useRef(onUpdate)
+  onUpdateRef.current = onUpdate
   useEffect(() => {
-    onUpdate(q)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const t = setTimeout(() => onUpdateRef.current(q), 0)
+    return () => clearTimeout(t)
   }, [q])
 
   const updateField = <K extends keyof Quotation>(field: K, value: Quotation[K]) => {
@@ -4022,6 +4250,40 @@ function QuotationEditor({
       ...prev,
       items: prev.items.filter((item) => item.categoria !== catName),
     }))
+  }
+
+  // Fee de agencia modal
+  const [feeCat, setFeeCat] = useState<string | null>(null)
+  const [feePct, setFeePct] = useState(15)
+
+  const addAgencyFee = (catName: string, pct: number) => {
+    setQ((prev) => {
+      const items = [...prev.items]
+      const catItems = items.filter((i) => i.categoria === catName && !(i.concepto ?? '').startsWith('Fee de agencia'))
+      const catSubtotal = catItems.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
+      const feeAmount = Math.round(catSubtotal * (pct / 100) * 100) / 100
+      // Find last item of this category
+      let lastIdx = -1
+      items.forEach((item, i) => { if (item.categoria === catName) lastIdx = i })
+      // Remove existing fee for this category
+      const filtered = items.filter((i) => !(i.categoria === catName && (i.concepto ?? '').startsWith('Fee de agencia')))
+      // Recalculate lastIdx after filtering
+      let insertIdx = -1
+      filtered.forEach((item, i) => { if (item.categoria === catName) insertIdx = i })
+      const feeItem: QuotationItem = {
+        concepto: `Fee de agencia (${pct}%)`,
+        cantidad: 1,
+        precio_unitario: feeAmount,
+        categoria: catName,
+      }
+      if (insertIdx === -1) {
+        filtered.push(feeItem)
+      } else {
+        filtered.splice(insertIdx + 1, 0, feeItem)
+      }
+      return { ...prev, items: filtered }
+    })
+    setFeeCat(null)
   }
 
   // Catalog images
@@ -4098,11 +4360,7 @@ function QuotationEditor({
     return groups
   })()
 
-  const subtotal = q.items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
-  const descuento = subtotal * (q.descuento_porcentaje / 100)
-  const subtotalConDescuento = subtotal - descuento
-  const iva = subtotalConDescuento * (q.iva_porcentaje / 100)
-  const total = subtotalConDescuento + iva
+  const total = q.items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
 
   // Build preview HTML — reuse shared function
   const buildPreviewHtml = useCallback(() => buildQuotationPreviewHtml(q, project), [q, project])
@@ -4267,10 +4525,10 @@ function QuotationEditor({
                       </td>
                     </tr>
                   )}
-                  {itemGroups.map((group) => {
+                  {itemGroups.map((group, gi) => {
                     const catSubtotal = group.items.reduce((s, { item }) => s + item.cantidad * item.precio_unitario, 0)
                     return (
-                      <Fragment key={group.categoria}>
+                      <Fragment key={`${gi}-${group.categoria}`}>
                         {/* Category header */}
                         <tr className="bg-primary/5 border-t border-primary/20">
                           <td colSpan={4} className="px-3 py-2">
@@ -4303,11 +4561,17 @@ function QuotationEditor({
                               <button
                                 onClick={() => addItemToCategory(group.categoria)}
                                 className="p-0.5 rounded hover:bg-primary/10 text-muted-foreground/50 hover:text-primary transition-colors cursor-pointer"
-                                title="Agregar item a esta categoría"
+                                title="Agregar item"
                               >
                                 <Plus className="h-3 w-3" />
                               </button>
-                              <span className="text-[10px] text-muted-foreground ml-auto">{fmtMXN(catSubtotal)}</span>
+                              <button
+                                onClick={() => { setFeeCat(group.categoria); setFeePct(15) }}
+                                className="px-1.5 py-0.5 rounded hover:bg-amber-500/10 text-muted-foreground/50 hover:text-amber-600 transition-colors cursor-pointer text-[9px] font-semibold"
+                                title="Agregar fee de agencia"
+                              >
+                                FEE
+                              </button>
                             </div>
                           </td>
                           <td className="px-1 py-2">
@@ -4341,11 +4605,10 @@ function QuotationEditor({
                         {group.items.map(({ item, idx }) => (
                           <tr key={idx} className="border-b border-border/30 hover:bg-muted/10 transition-colors group">
                             <td className="px-3 py-1.5 pl-6">
-                              <textarea
+                              <DeferredTextarea
                                 className="w-full bg-transparent border-0 outline-none text-sm resize-none min-h-[1.75rem]"
-                                value={item.concepto}
-                                rows={Math.max(1, (item.concepto?.split('\n').length ?? 1))}
-                                onChange={(e) => updateItem(idx, 'concepto', e.target.value)}
+                                value={item.concepto ?? ''}
+                                onChange={(v) => updateItem(idx, 'concepto', v)}
                                 placeholder="Descripción del concepto"
                               />
                             </td>
@@ -4374,67 +4637,33 @@ function QuotationEditor({
                             </td>
                           </tr>
                         ))}
+                        {/* Category subtotal */}
+                        <tr className="border-b border-border/60 bg-muted/5">
+                          <td colSpan={3} className="px-3 py-1.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Subtotal {group.categoria}
+                          </td>
+                          <td className="px-3 py-1.5 text-right text-sm font-bold">
+                            {fmtMXN(catSubtotal)}
+                          </td>
+                          <td />
+                        </tr>
                       </Fragment>
                     )
                   })}
                 </tbody>
               </table>
             </div>
-            {/* Totals footer */}
-            <div className="border-t border-border bg-muted/10 px-4 py-3 space-y-1">
-              <div className="flex justify-end gap-6 text-sm">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span className="font-medium w-28 text-right">{fmtMXN(subtotal)}</span>
-              </div>
-              {q.descuento_porcentaje > 0 && (
-                <div className="flex justify-end gap-6 text-sm">
-                  <span className="text-primary">Descuento ({q.descuento_porcentaje}%)</span>
-                  <span className="font-medium text-primary w-28 text-right">-{fmtMXN(descuento)}</span>
-                </div>
-              )}
-              {q.iva_porcentaje > 0 && (
-                <div className="flex justify-end gap-6 text-sm">
-                  <span className="text-muted-foreground">IVA ({q.iva_porcentaje}%)</span>
-                  <span className="font-medium w-28 text-right">+{fmtMXN(iva)}</span>
-                </div>
-              )}
-              <div className="flex justify-end gap-6 text-base pt-1 border-t border-border/50">
+            {/* Total footer */}
+            <div className="border-t border-border bg-muted/10 px-4 py-3">
+              <div className="flex justify-end gap-6 text-base">
                 <span className="font-bold">Total</span>
                 <span className="font-bold w-28 text-right">{fmtMXN(total)}</span>
               </div>
             </div>
           </div>
 
-          {/* Config row: descuento + IVA + vigencia */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="rounded-xl border border-border bg-card p-4">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">Descuento</label>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  className="w-full bg-transparent border-0 outline-none text-lg font-semibold text-right"
-                  value={q.descuento_porcentaje}
-                  min={0}
-                  max={100}
-                  onChange={(e) => updateField('descuento_porcentaje', Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
-                />
-                <span className="text-muted-foreground text-lg">%</span>
-              </div>
-            </div>
-            <div className="rounded-xl border border-border bg-card p-4">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">IVA</label>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  className="w-full bg-transparent border-0 outline-none text-lg font-semibold text-right"
-                  value={q.iva_porcentaje}
-                  min={0}
-                  max={100}
-                  onChange={(e) => updateField('iva_porcentaje', Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
-                />
-                <span className="text-muted-foreground text-lg">%</span>
-              </div>
-            </div>
+          {/* Config row: vigencia */}
+          <div className="grid grid-cols-1 max-w-xs gap-4">
             <div className="rounded-xl border border-border bg-card p-4">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">Vigencia</label>
               <div className="flex items-center gap-1">
@@ -4449,6 +4678,36 @@ function QuotationEditor({
               </div>
             </div>
           </div>
+
+          {/* Fee de agencia modal */}
+          {feeCat && createPortal(
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/60" onClick={() => setFeeCat(null)} />
+              <div className="relative w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl p-5">
+                <h3 className="text-sm font-semibold mb-1">Fee de agencia — {feeCat}</h3>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Se calculará sobre el subtotal de la categoría (sin incluir fees previos).
+                </p>
+                <div className="flex items-center gap-2 mb-4">
+                  <input
+                    type="number"
+                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-lg font-semibold text-right outline-none focus:ring-2 focus:ring-primary/20"
+                    value={feePct}
+                    min={0}
+                    max={100}
+                    onChange={(e) => setFeePct(Number(e.target.value) || 0)}
+                    autoFocus
+                  />
+                  <span className="text-lg text-muted-foreground">%</span>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setFeeCat(null)}>Cancelar</Button>
+                  <Button size="sm" onClick={() => addAgencyFee(feeCat, feePct)}>Agregar fee</Button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )}
 
           {/* Catalog images */}
           <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -4467,14 +4726,9 @@ function QuotationEditor({
               {showCatalog && (
                 <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-1 text-xs">
-                    <span className="text-muted-foreground">Grid</span>
-                    <input type="number" min={1} max={4} value={q.imagen_cols}
-                      onChange={(e) => updateField('imagen_cols', Math.max(1, Math.min(4, Number(e.target.value))))}
-                      className="w-8 rounded border border-border bg-background-elevated px-1 py-0.5 text-center text-xs outline-none"
-                    />
-                    <span className="text-muted-foreground">×</span>
-                    <input type="number" min={1} max={5} value={q.imagen_rows}
-                      onChange={(e) => updateField('imagen_rows', Math.max(1, Math.min(5, Number(e.target.value))))}
+                    <span className="text-muted-foreground">Por página</span>
+                    <input type="number" min={1} max={6} value={q.imagen_rows}
+                      onChange={(e) => updateField('imagen_rows', Math.max(1, Math.min(6, Number(e.target.value))))}
                       className="w-8 rounded border border-border bg-background-elevated px-1 py-0.5 text-center text-xs outline-none"
                     />
                   </div>
@@ -4529,28 +4783,34 @@ function QuotationEditor({
                 )}
 
                 {q.imagenes.length > 0 && (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <p className="text-xs font-medium text-muted-foreground">Seleccionadas ({q.imagenes.length})</p>
                     {q.imagenes.map((img) => (
-                      <div key={img.mediaId} className="flex gap-2 items-start p-2 rounded-md border border-border bg-muted/20">
-                        <img src={img.url} alt={img.title} className="w-10 h-10 rounded object-cover shrink-0" />
-                        <div className="flex-1 min-w-0 space-y-1">
+                      <div key={img.mediaId} className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/10 overflow-hidden">
+                        {/* Left: Image */}
+                        <div className="relative aspect-[4/3] bg-black/5">
+                          <img src={img.url} alt={img.title} className="w-full h-full object-cover" />
+                          <button type="button" onClick={() => removeCatalogImage(img.mediaId)}
+                            className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/50 text-white hover:bg-destructive transition-colors cursor-pointer"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        {/* Right: Title + Description */}
+                        <div className="py-3 pr-3 flex flex-col gap-2">
                           <input type="text" value={img.title}
                             onChange={(e) => updateCatalogImage(img.mediaId, 'title', e.target.value)}
-                            className="w-full text-xs font-medium rounded border border-border bg-background-elevated px-2 py-1 outline-none focus:ring-1 focus:ring-primary/20"
-                            placeholder="Título"
+                            className="w-full text-sm font-semibold rounded border border-border bg-background px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-primary/20"
+                            placeholder="Título de la imagen"
                           />
-                          <input type="text" value={img.description}
-                            onChange={(e) => updateCatalogImage(img.mediaId, 'description', e.target.value)}
-                            className="w-full text-xs rounded border border-border bg-background-elevated px-2 py-1 outline-none focus:ring-1 focus:ring-primary/20"
-                            placeholder="Descripción (opcional)"
-                          />
+                          <div className="flex-1 min-h-0 overflow-y-auto rounded border border-border bg-background">
+                            <RichTextEditor
+                              value={img.description}
+                              onChange={(html) => updateCatalogImage(img.mediaId, 'description', html)}
+                              placeholder="Descripción de la imagen..."
+                            />
+                          </div>
                         </div>
-                        <button type="button" onClick={() => removeCatalogImage(img.mediaId)}
-                          className="p-1 text-muted-foreground hover:text-destructive transition-colors cursor-pointer shrink-0"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
                       </div>
                     ))}
                   </div>
