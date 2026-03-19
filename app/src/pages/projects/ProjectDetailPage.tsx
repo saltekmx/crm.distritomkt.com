@@ -4299,7 +4299,7 @@ function QuotationEditor({
       let insertIdx = -1
       filtered.forEach((item, i) => { if (item.categoria === catName) insertIdx = i })
       const feeItem: QuotationItem = {
-        concepto: `Fee de agencia (${pct}%)`,
+        concepto: 'Fee de agencia',
         cantidad: 1,
         precio_unitario: feeAmount,
         categoria: catName,
