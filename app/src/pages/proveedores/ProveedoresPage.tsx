@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Truck, Plus, MoreHorizontal, Pencil, Trash2,
-  Search, X, ChevronLeft, ChevronRight, Loader2,
+  Search, X, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { proveedoresApi } from '@/services/api'

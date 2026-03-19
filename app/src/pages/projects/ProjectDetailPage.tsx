@@ -7,7 +7,7 @@ import {
   History, Receipt, CreditCard, CheckCircle, Lock, Zap,
   Banknote, Package, Loader2, Presentation, Boxes, Sparkles,
   Plus, Trash2, Save, Printer, GripVertical, ChevronDown,
-  ChevronRight, Pencil, FolderPlus, X, Send, Mail, MessageCircle, Download, Upload, FileSpreadsheet, Percent,
+  ChevronRight, Pencil, FolderPlus, X, Send, Mail, Download, Upload, FileSpreadsheet, Percent,
   Image, Check, MoreHorizontal, Copy, Eye, RefreshCw, CheckCircle2, ArrowRight,
 } from 'lucide-react'
 import {
@@ -62,6 +62,7 @@ interface Project {
   notas: string | null
   propuesta_texto: string | null
   materiales: Material[] | null
+  codigo: string | null
   creado_en: string
 }
 
@@ -114,11 +115,12 @@ interface TimelineEntry {
 }
 
 // Normalize legacy data: rename 'material' → 'concepto' for backwards compat
-function normalizeMaterials<T extends Record<string, unknown>>(items: T[]): T[] {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeMaterials<T extends Record<string, any>>(items: T[]): T[] {
   return items.map((item) => {
     if ('material' in item && !('concepto' in item)) {
       const { material, ...rest } = item
-      return { ...rest, concepto: material } as T
+      return { ...rest, concepto: material } as unknown as T
     }
     return item
   })
@@ -347,7 +349,8 @@ export default function ProjectDetailPage() {
   const [descExpanded, setDescExpanded] = useState(false)
 
   // Visual milestone indicators ("foquitos") — light up green when data conditions are met
-  const [proposalHasFiles, setProposalHasFiles] = useState(false)
+  const [proposalHasFiles, _setProposalHasFiles] = useState(false)
+  void _setProposalHasFiles
   const [quotationGenerated, setQuotationGenerated] = useState(false)
   const [cotizacionesSummary, setCotizacionesSummary] = useState<{ count: number; hasApproved: boolean }>({ count: 0, hasApproved: false })
 
@@ -514,7 +517,7 @@ export default function ProjectDetailPage() {
         <OverviewTab project={project} timeline={timeline} tz={tz} operativeCompletedKeys={operativeCompletedKeys} />
       )}
       {activeTab === 'proposal' && (
-        <ProposalTab project={project} onUpdate={(p) => { setProject(p); refreshTimeline() }} onFilesChange={(has) => setProposalHasFiles(has)} />
+        <ProposalTab project={project} onUpdate={(p) => { setProject(p); refreshTimeline() }} />
       )}
       {activeTab === 'materials' && (
         <MaterialsTab
@@ -644,7 +647,7 @@ function OverviewTab({ project, timeline, tz, operativeCompletedKeys }: { projec
 // Proposal Tab
 // ---------------------------------------------------------------------------
 
-function ProposalTab({ project, onUpdate, onFilesChange }: { project: Project; onUpdate: (p: Project) => void; onFilesChange?: (hasFiles: boolean) => void }) {
+function ProposalTab({ project, onUpdate }: { project: Project; onUpdate: (p: Project) => void }) {
   const [texto, setTexto] = useState(project.propuesta_texto ?? '')
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -681,7 +684,6 @@ function ProposalTab({ project, onUpdate, onFilesChange }: { project: Project; o
             entityType="propuesta"
             entityId={project.id}
             folder="projects"
-            onFilesChange={(count) => onFilesChange?.(count > 0)}
           />
         </div>
       </div>
@@ -755,13 +757,6 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = Object.fromE
   MATERIAL_STATUS_OPTIONS.map((o) => [o.value, { bg: o.bg, text: o.text }]),
 )
 
-const STATUS_BADGE: Record<string, string> = {
-  pendiente: 'bg-gray-500/15 text-gray-400 border-gray-500/20',
-  cotizado: 'bg-blue-500/15 text-blue-400 border-blue-500/20',
-  aprobado: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
-  comprado: 'bg-purple-500/15 text-purple-400 border-purple-500/20',
-  entregado: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/20',
-}
 
 /** Group rows by categoria preserving original index and array order */
 function groupByCategory(rows: Material[]): Array<{ categoria: string; items: Array<{ row: Material; idx: number }> }> {
@@ -1025,7 +1020,7 @@ const SortableRow = memo(function SortableRow({
 
 /** Sortable category header with drag handle */
 const SortableCategoryHeader = memo(function SortableCategoryHeader({
-  id, group, groups, isCollapsed, catPrecio, colCount, readOnly,
+  id, group, isCollapsed, catPrecio, colCount, readOnly,
   editingCat, editCatValue,
   onToggleCollapse, onStartEditCat, onEditCatValueChange, onCommitEditCat, onCancelEditCat,
   onDeleteCategory,
@@ -1033,7 +1028,6 @@ const SortableCategoryHeader = memo(function SortableCategoryHeader({
 }: {
   id: string
   group: { categoria: string; items: Array<{ row: Material; idx: number }> }
-  groups: Array<{ categoria: string; items: Array<{ row: Material; idx: number }> }>
   isCollapsed: boolean
   catPrecio: number
   colCount: number
@@ -1241,7 +1235,6 @@ function MaterialsTable({
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const draggedId = activeId
     setActiveId(null)
 
     // Restore collapse state if we were dragging a category
@@ -1335,7 +1328,6 @@ function MaterialsTable({
               <SortableCategoryHeader
                 id={`cat-${gi}`}
                 group={group}
-                groups={groups}
                 isCollapsed={isCollapsed}
                 catPrecio={catPrecio}
                 colCount={colCount}
@@ -1541,12 +1533,12 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
   const [showSendModal, setShowSendModal] = useState(false)
   const [sendSupplier, setSendSupplier] = useState({ nombre: '', email: '', telefono: '' })
   const [catalogImages, setCatalogImages] = useState<CatalogImage[]>([])
-  const [catalogCols, setCatalogCols] = useState(2)
+  const [catalogCols] = useState(2)
   const [catalogRows, setCatalogRows] = useState(3)
   const [projectMedia, setProjectMedia] = useState<MediaFile[]>([])
   const [loadingMedia, setLoadingMedia] = useState(false)
   const [generalNote, setGeneralNote] = useState('Favor de enviar cotización con precios unitarios, tiempos de entrega y condiciones de pago.')
-  const [showCatalogSection, setShowCatalogSection] = useState(false)
+
 
   const openSendModal = () => {
     setShowSendModal(true)
@@ -1761,6 +1753,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
 
   const generatePdfDoc = async () => {
     const { jsPDF } = await import('jspdf')
+    // @ts-ignore -- no types available for jspdf-autotable
     const autoTableModule = await import('jspdf-autotable')
     const autoTable = autoTableModule.default
     const doc = new jsPDF({ unit: 'mm', format: 'letter', orientation: 'portrait' })
@@ -3427,7 +3420,6 @@ async function generateQuotationPdfBlob(q: Quotation, project: Project): Promise
         // Page break check (estimate)
         if (cy + imgH + 10 > pageH - 20) { doc.addPage(); cy = margin }
 
-        const rowStart = cy
 
         // Image (left half, top-aligned)
         try { doc.addImage(img.dataUrl, 'JPEG', margin + 2, cy + 2, imgW, imgH) } catch { /* skip */ }
@@ -4301,9 +4293,6 @@ function QuotationEditor({
       const catItems = items.filter((i) => i.categoria === catName && !(i.concepto ?? '').startsWith('Fee de agencia'))
       const catSubtotal = catItems.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
       const feeAmount = Math.round(catSubtotal * (pct / 100) * 100) / 100
-      // Find last item of this category
-      let lastIdx = -1
-      items.forEach((item, i) => { if (item.categoria === catName) lastIdx = i })
       // Remove existing fee for this category
       const filtered = items.filter((i) => !(i.categoria === catName && (i.concepto ?? '').startsWith('Fee de agencia')))
       // Recalculate lastIdx after filtering
@@ -4528,7 +4517,7 @@ function QuotationEditor({
             </div>
             <div className="p-4">
               <RichTextEditor
-                value={q.texto_intro}
+                value={q.texto_intro ?? ''}
                 onChange={(html) => updateField('texto_intro', html)}
                 placeholder="Texto que aparece antes de la tabla de conceptos..."
               />
@@ -4854,7 +4843,7 @@ function QuotationEditor({
             <textarea
               className="w-full bg-transparent border-0 outline-none text-sm resize-none placeholder:text-muted-foreground/40"
               rows={3}
-              value={q.texto_terminos}
+              value={q.texto_terminos ?? ''}
               onChange={(e) => updateField('texto_terminos', e.target.value)}
               placeholder="Términos y condiciones de la cotización..."
             />
@@ -4866,7 +4855,7 @@ function QuotationEditor({
             <textarea
               className="w-full bg-transparent border-0 outline-none text-sm resize-none placeholder:text-muted-foreground/40"
               rows={2}
-              value={q.notas}
+              value={q.notas ?? ''}
               onChange={(e) => updateField('notas', e.target.value)}
               placeholder="Notas privadas..."
             />
