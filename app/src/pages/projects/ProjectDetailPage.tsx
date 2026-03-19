@@ -378,13 +378,13 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     refreshTimeline()
-    // Fetch cotizaciones summary for foquitos
-    if (!id) return
-    cotizacionesApi.list(id).then((res) => {
+    // Fetch cotizaciones summary for foquitos (needs numeric project.id)
+    if (!project) return
+    cotizacionesApi.list(project.id).then((res) => {
       const list = (res.data ?? []) as Quotation[]
       setCotizacionesSummary({ count: list.length, hasApproved: list.some((q) => q.estado === 'aprobada') })
     }).catch(() => {})
-  }, [id, refreshTimeline])
+  }, [project?.id, refreshTimeline])
 
   if (loading) {
     return (
@@ -1715,8 +1715,8 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
   .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; text-align: center; }
   .catalog-page { margin-top: 32px; padding-top: 20px; border-top: 2px solid #e2e8f0; }
   .catalog-header { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 12px; border-bottom: 2px solid #d4af37; padding-bottom: 6px; }
-  .catalog-item { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 10px; min-height: 120px; }
-  .catalog-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .catalog-item { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
+  .catalog-item img { width: 100%; height: auto; display: block; }
   .item-content { padding: 12px 14px; border-left: 1px solid #e2e8f0; }
   .img-title { font-weight: 700; font-size: 12px; color: #0f172a; margin-bottom: 6px; }
   .img-desc { font-size: 10px; color: #334155; line-height: 1.6; }
@@ -1774,7 +1774,17 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
     const lightGray = '#94a3b8'
 
     let logoDataUrl = ''
-    try { logoDataUrl = await loadImageAsDataUrl('/logo-dark.png') } catch { /* skip */ }
+    let logoW = 0, logoH = 0
+    try {
+      logoDataUrl = await loadImageAsDataUrl('/logo-dark.png')
+      const dims = await new Promise<{ w: number; h: number }>((resolve) => {
+        const img = new window.Image()
+        img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
+        img.onerror = () => resolve({ w: 200, h: 80 })
+        img.src = logoDataUrl
+      })
+      logoH = 12; logoW = 12 * (dims.w / dims.h)
+    } catch { /* skip */ }
 
     const today = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })
     const supplierName = sendSupplier.nombre
@@ -1791,7 +1801,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
     doc.setTextColor(gray)
     doc.text(`${project.nombre} — ${project.cliente_nombre ?? ''}`, margin, y + 12)
     if (logoDataUrl) {
-      try { doc.addImage(logoDataUrl, 'PNG', pageW - margin - 25, y - 2, 25, 14) } catch { /* skip */ }
+      try { doc.addImage(logoDataUrl, 'PNG', pageW - margin - logoW, y - 2, logoW, logoH) } catch { /* skip */ }
     }
     y += 18
     doc.setDrawColor(gold)
@@ -1943,29 +1953,35 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
         cy += 8
 
         const pageImages = catalogImages.slice(p * perPage, (p + 1) * perPage)
-        for (const img of pageImages) {
-          const imgDrawW = halfW - 2
+        for (let imgIdx = 0; imgIdx < pageImages.length; imgIdx++) {
+          const img = pageImages[imgIdx]
+          const imgDrawW = halfW - 4
           const ratio = img.naturalH / img.naturalW
-          const finalImgH = Math.min(imgDrawW * ratio, 70)
-          const finalImgW = finalImgH / ratio
-          const rowH = finalImgH + 4
-          if (cy + rowH > pageH - 20) { doc.addPage(); cy = margin }
-          doc.setDrawColor('#e2e8f0'); doc.setLineWidth(0.3)
-          doc.roundedRect(margin, cy, contentW, rowH, 1.5, 1.5, 'S')
-          const dividerX = margin + halfW
-          doc.line(dividerX, cy, dividerX, cy + rowH)
-          const imgX = margin + (halfW - finalImgW) / 2
-          const imgY = cy + (rowH - finalImgH) / 2
-          try { doc.addImage(img.dataUrl, 'JPEG', imgX, imgY, finalImgW, finalImgH) } catch { /* skip */ }
-          const textX = dividerX + 4
+          const imgH = Math.min(imgDrawW * ratio, 60)
+          const imgW = imgH / ratio
           const textW = halfW - 8
+
+          if (cy + imgH + 10 > pageH - 20) { doc.addPage(); cy = margin }
+
+          try { doc.addImage(img.dataUrl, 'JPEG', margin + 2, cy + 2, imgW, imgH) } catch { /* skip */ }
+          const imgBottom = cy + imgH + 4
+
+          const textX = margin + halfW + 4
           let ty = cy + 5
           doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(dark)
           const titleLines = doc.splitTextToSize(img.title || '', textW)
           doc.text(titleLines, textX, ty)
           ty += titleLines.length * 4.5 + 2
           if (img.description) { ty = renderRich(img.description, textX, ty, textW) }
-          cy += rowH + gap
+          const textBottom = ty + 4
+
+          cy = Math.max(imgBottom, textBottom)
+
+          if (imgIdx < pageImages.length - 1) {
+            doc.setDrawColor('#e2e8f0'); doc.setLineWidth(0.2)
+            doc.line(margin, cy, pageW - margin, cy)
+            cy += gap
+          }
         }
       }
     }
@@ -2756,8 +2772,8 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
                     <p className="text-xs font-medium text-muted-foreground">Seleccionadas ({catalogImages.length})</p>
                     {catalogImages.map((img) => (
                       <div key={img.mediaId} className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/10 overflow-hidden">
-                        <div className="relative aspect-[4/3] bg-black/5">
-                          <img src={img.url} alt={img.title} className="w-full h-full object-cover" />
+                        <div className="relative bg-muted/20">
+                          <img src={img.url} alt={img.title} className="w-full h-auto" />
                           <button type="button" onClick={() => removeCatalogImage(img.mediaId)}
                             className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/50 text-white hover:bg-destructive transition-colors cursor-pointer"
                           >
@@ -3054,9 +3070,6 @@ function buildQuotationPreviewHtml(q: Quotation, project: Project): string {
   const items = q.items ?? []
   const imagenes = q.imagenes ?? []
   const today = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })
-  const vigenciaDate = new Date()
-  vigenciaDate.setDate(vigenciaDate.getDate() + (q.vigencia_dias || 15))
-  const vigenciaStr = vigenciaDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })
 
   const groups: Map<string, QuotationItem[]> = new Map()
   for (const item of items) {
@@ -3128,8 +3141,8 @@ function buildQuotationPreviewHtml(q: Quotation, project: Project): string {
   .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; text-align: center; }
   .catalog-page { margin-top: 32px; padding-top: 20px; border-top: 2px solid #e2e8f0; }
   .catalog-header { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 12px; border-bottom: 2px solid #d4af37; padding-bottom: 6px; }
-  .catalog-item { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 10px; min-height: 120px; }
-  .catalog-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .catalog-item { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
+  .catalog-item img { width: 100%; height: auto; display: block; }
   .item-content { padding: 12px 14px; border-left: 1px solid #e2e8f0; }
   .img-title { font-weight: 700; font-size: 12px; color: #0f172a; margin-bottom: 6px; }
   .img-desc { font-size: 10px; color: #334155; line-height: 1.6; }
@@ -3148,13 +3161,12 @@ function buildQuotationPreviewHtml(q: Quotation, project: Project): string {
   <div class="meta">
     <div class="col"><div class="label">Cliente</div><div class="value">${project.cliente_nombre ?? ''}</div></div>
     <div class="col"><div class="label">Fecha</div><div class="value">${today}</div></div>
-    <div class="col"><div class="label">Vigencia</div><div class="value">${vigenciaStr}</div></div>
     <div class="col"><div class="label">Proyecto</div><div class="value">${project.nombre}</div></div>
   </div>
   ${q.texto_intro ? `<div class="intro">${q.texto_intro}</div>` : ''}
   <table><thead><tr><th style="width:30px;text-align:center">#</th><th>Concepto</th><th style="width:70px;text-align:center">Cantidad</th><th style="width:100px;text-align:right">Precio Unit.</th></tr></thead><tbody>${tableRows}</tbody></table>
   <div class="totals">
-    <div class="line total"><span class="label">Total:</span><span class="amount">${fmtMXN(tot)}</span></div>
+    <div class="line total"><span class="label">Subtotal:</span><span class="amount">${fmtMXN(tot)}</span></div>
   </div>
   ${q.texto_terminos ? `<div class="terms"><strong>Términos y Condiciones:</strong>${q.texto_terminos}</div>` : ''}
   <div class="footer">Generado por DistritoMKT CRM — ${today}</div>
@@ -3189,12 +3201,22 @@ async function generateQuotationPdfBlob(q: Quotation, project: Project): Promise
     }))
 
   let logoDataUrl = ''
-  try { logoDataUrl = await loadImg('/logo-dark.png') } catch { /* skip */ }
+  let logoW = 0
+  let logoH = 0
+  try {
+    logoDataUrl = await loadImg('/logo-dark.png')
+    const dims = await new Promise<{ w: number; h: number }>((resolve) => {
+      const img = new window.Image()
+      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
+      img.onerror = () => resolve({ w: 200, h: 80 })
+      img.src = logoDataUrl
+    })
+    const maxH = 12
+    logoH = maxH
+    logoW = maxH * (dims.w / dims.h)
+  } catch { /* skip */ }
 
   const today = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })
-  const vigenciaDate = new Date()
-  vigenciaDate.setDate(vigenciaDate.getDate() + (q.vigencia_dias || 15))
-  const vigenciaStr = vigenciaDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })
 
   // Header
   let y = margin
@@ -3207,7 +3229,7 @@ async function generateQuotationPdfBlob(q: Quotation, project: Project): Promise
   doc.setTextColor(gray)
   doc.text(`${q.nombre} — ${project.cliente_nombre ?? ''}`, margin, y + 12)
   if (logoDataUrl) {
-    try { doc.addImage(logoDataUrl, 'PNG', pageW - margin - 25, y - 2, 25, 14) } catch { /* skip */ }
+    try { doc.addImage(logoDataUrl, 'PNG', pageW - margin - logoW, y - 2, logoW, logoH) } catch { /* skip */ }
   }
   y += 18
   doc.setDrawColor(gold)
@@ -3219,7 +3241,6 @@ async function generateQuotationPdfBlob(q: Quotation, project: Project): Promise
   const metaCols = [
     { label: 'CLIENTE', value: project.cliente_nombre ?? '' },
     { label: 'FECHA', value: today },
-    { label: 'VIGENCIA', value: vigenciaStr },
     { label: 'PROYECTO', value: project.nombre },
   ]
   const colW = contentW / metaCols.length
@@ -3298,7 +3319,7 @@ async function generateQuotationPdfBlob(q: Quotation, project: Project): Promise
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
   doc.setTextColor(dark)
-  doc.text(`Total: ${fmtMXN(total)}`, rightX, y, { align: 'right' })
+  doc.text(`Subtotal: ${fmtMXN(total)}`, rightX, y, { align: 'right' })
   y += 8
 
   // Terms
@@ -3395,36 +3416,25 @@ async function generateQuotationPdfBlob(q: Quotation, project: Project): Promise
       cy += 8
 
       const pageImages = imagenes.slice(p * perPage, (p + 1) * perPage)
-      for (const img of pageImages) {
-        // Image always fills left half exactly
-        const imgDrawW = halfW - 2
+      for (let imgIdx = 0; imgIdx < pageImages.length; imgIdx++) {
+        const img = pageImages[imgIdx]
+        const imgDrawW = halfW - 4
         const ratio = img.naturalH / img.naturalW
-        const imgH = imgDrawW * ratio
-        const maxImgH = (pageH - cy - 20) / (pageImages.length > 1 ? 1.5 : 1)
-        const finalImgH = Math.min(imgH, maxImgH, 70)
-        const finalImgW = finalImgH / ratio
-        const rowH = finalImgH + 4
+        const imgH = Math.min(imgDrawW * ratio, 60)
+        const imgW = imgH / ratio
+        const textW = halfW - 8
 
-        if (cy + rowH > pageH - 20) { doc.addPage(); cy = margin }
+        // Page break check (estimate)
+        if (cy + imgH + 10 > pageH - 20) { doc.addPage(); cy = margin }
 
-        // Border
-        doc.setDrawColor('#e2e8f0')
-        doc.setLineWidth(0.3)
-        doc.roundedRect(margin, cy, contentW, rowH, 1.5, 1.5, 'S')
+        const rowStart = cy
 
-        // Vertical divider
-        const dividerX = margin + halfW
-        doc.setDrawColor('#e2e8f0')
-        doc.line(dividerX, cy, dividerX, cy + rowH)
-
-        // Image (left half, centered)
-        const imgX = margin + (halfW - finalImgW) / 2
-        const imgY = cy + (rowH - finalImgH) / 2
-        try { doc.addImage(img.dataUrl, 'JPEG', imgX, imgY, finalImgW, finalImgH) } catch { /* skip */ }
+        // Image (left half, top-aligned)
+        try { doc.addImage(img.dataUrl, 'JPEG', margin + 2, cy + 2, imgW, imgH) } catch { /* skip */ }
+        const imgBottom = cy + imgH + 4
 
         // Title + description (right half)
-        const textX = dividerX + 4
-        const textW = halfW - 8
+        const textX = margin + halfW + 4
         let ty = cy + 5
         doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
@@ -3435,8 +3445,18 @@ async function generateQuotationPdfBlob(q: Quotation, project: Project): Promise
         if (img.description) {
           ty = renderRichText(img.description, textX, ty, textW)
         }
+        const textBottom = ty + 4
 
-        cy += rowH + gap
+        // Move past the taller side
+        cy = Math.max(imgBottom, textBottom)
+
+        // Separator line between items
+        if (imgIdx < pageImages.length - 1) {
+          doc.setDrawColor('#e2e8f0')
+          doc.setLineWidth(0.2)
+          doc.line(margin, cy, pageW - margin, cy)
+          cy += gap
+        }
       }
     }
   }
@@ -3475,7 +3495,7 @@ function QuotesTab({ project, quotationIdParam, onCotizacionesChange }: {
     let cancelled = false
     setLoading(true)
 
-    cotizacionesApi.list(projectId).then(async (res) => {
+    cotizacionesApi.list(project.id).then(async (res) => {
       if (cancelled) return
       const list = (res.data ?? []) as Quotation[]
       list.sort((a, b) => a.id - b.id)
@@ -3486,7 +3506,7 @@ function QuotesTab({ project, quotationIdParam, onCotizacionesChange }: {
         try {
           const num = list.length + 1
           const created = await cotizacionesApi.create({
-            proyecto_id: Number(projectId),
+            proyecto_id: project.id,
             nombre: `Cotización v${num}`,
           })
           if (cancelled) return
@@ -3511,7 +3531,7 @@ function QuotesTab({ project, quotationIdParam, onCotizacionesChange }: {
 
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [project.id])
 
   const setEditingWithUrl = (qId: number | null) => {
     setEditingId(qId)
@@ -3526,7 +3546,7 @@ function QuotesTab({ project, quotationIdParam, onCotizacionesChange }: {
     try {
       const num = cotizaciones.length + 1
       const created = await cotizacionesApi.create({
-        proyecto_id: Number(projectId),
+        proyecto_id: project.id,
         nombre: `Cotización v${num}`,
       })
       const q = created.data as Quotation
@@ -3543,7 +3563,7 @@ function QuotesTab({ project, quotationIdParam, onCotizacionesChange }: {
     try {
       const num = cotizaciones.length + 1
       const created = await cotizacionesApi.create({
-        proyecto_id: Number(projectId),
+        proyecto_id: project.id,
         nombre: `Cotización v${num}`,
         items,
       })
@@ -3560,7 +3580,7 @@ function QuotesTab({ project, quotationIdParam, onCotizacionesChange }: {
   const handleDuplicate = async (q: Quotation) => {
     try {
       const created = await cotizacionesApi.create({
-        proyecto_id: Number(projectId),
+        proyecto_id: project.id,
         nombre: `${q.nombre} (copia)`,
         items: q.items,
         texto_intro: q.texto_intro,
@@ -3598,7 +3618,7 @@ function QuotesTab({ project, quotationIdParam, onCotizacionesChange }: {
       // Reload list from server
       setLoading(true)
       try {
-        const res = await cotizacionesApi.list(projectId!)
+        const res = await cotizacionesApi.list(project.id)
         const list = (res.data ?? []) as Quotation[]
         list.sort((a, b) => a.id - b.id)
         setCotizaciones(list)
@@ -3652,7 +3672,7 @@ function QuotesTab({ project, quotationIdParam, onCotizacionesChange }: {
         })
         setDirty(false)
         setLastSaved(new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))
-        setCotizaciones((prev) => { notifyParent(prev); return prev })
+        setCotizaciones((prev) => { setTimeout(() => notifyParent(prev), 0); return prev })
       } catch {
         if (!deletedIdsRef.current.has(updated.id)) {
           toast.error('Error al guardar cotización')
@@ -4172,8 +4192,27 @@ function QuotationEditor({
   useEffect(() => {
     setLoadingMedia(true)
     mediaApi.list({ entity_type: 'project', entity_id: project.id, tipo: 'image' }).then((res) => {
-      setProjectMedia(res.data as MediaFile[])
+      const files = res.data as MediaFile[]
+      setProjectMedia(files)
+      // Refresh expired S3 URLs in catalog images
+      if (q.imagenes.length > 0 && files.length > 0) {
+        const urlMap = new Map(files.map((f) => [f.id, f.url]))
+        const needsRefresh = q.imagenes.some((img) => {
+          const freshUrl = urlMap.get(img.mediaId)
+          return freshUrl && freshUrl !== img.url
+        })
+        if (needsRefresh) {
+          setQ((prev) => ({
+            ...prev,
+            imagenes: prev.imagenes.map((img) => {
+              const freshUrl = urlMap.get(img.mediaId)
+              return freshUrl ? { ...img, url: freshUrl } : img
+            }),
+          }))
+        }
+      }
     }).catch(() => setProjectMedia([])).finally(() => setLoadingMedia(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id])
 
   // Sync back — use setTimeout to avoid setState-during-render
@@ -4317,8 +4356,15 @@ function QuotationEditor({
     }
   }
 
+  const catalogUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const updateCatalogImage = (mediaId: number, field: 'title' | 'description', value: string) => {
-    updateField('imagenes', q.imagenes.map((c) => c.mediaId === mediaId ? { ...c, [field]: value } : c))
+    if (catalogUpdateTimer.current) clearTimeout(catalogUpdateTimer.current)
+    catalogUpdateTimer.current = setTimeout(() => {
+      setQ((prev) => ({
+        ...prev,
+        imagenes: prev.imagenes.map((c) => c.mediaId === mediaId ? { ...c, [field]: value } : c),
+      }))
+    }, 500)
   }
 
   const removeCatalogImage = (mediaId: number) => {
@@ -4656,25 +4702,8 @@ function QuotationEditor({
             {/* Total footer */}
             <div className="border-t border-border bg-muted/10 px-4 py-3">
               <div className="flex justify-end gap-6 text-base">
-                <span className="font-bold">Total</span>
+                <span className="font-bold">Subtotal</span>
                 <span className="font-bold w-28 text-right">{fmtMXN(total)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Config row: vigencia */}
-          <div className="grid grid-cols-1 max-w-xs gap-4">
-            <div className="rounded-xl border border-border bg-card p-4">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">Vigencia</label>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  className="w-full bg-transparent border-0 outline-none text-lg font-semibold text-right"
-                  value={q.vigencia_dias}
-                  min={1}
-                  onChange={(e) => updateField('vigencia_dias', Math.max(1, Number(e.target.value) || 15))}
-                />
-                <span className="text-muted-foreground text-sm">días</span>
               </div>
             </div>
           </div>
@@ -4711,10 +4740,10 @@ function QuotationEditor({
 
           {/* Catalog images */}
           <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <button
-              type="button"
+            <div
+              role="button"
               onClick={() => setShowCatalog(!showCatalog)}
-              className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium cursor-pointer hover:bg-muted/20 transition-colors"
+              className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium cursor-pointer hover:bg-muted/20 transition-colors select-none"
             >
               {showCatalog ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
               <Image className="h-4 w-4 text-primary" />
@@ -4741,7 +4770,7 @@ function QuotationEditor({
                   <input ref={catalogUploadRef} type="file" accept="image/*" multiple className="hidden" onChange={handleCatalogUpload} />
                 </div>
               )}
-            </button>
+            </div>
 
             {showCatalog && (
               <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
@@ -4788,8 +4817,8 @@ function QuotationEditor({
                     {q.imagenes.map((img) => (
                       <div key={img.mediaId} className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/10 overflow-hidden">
                         {/* Left: Image */}
-                        <div className="relative aspect-[4/3] bg-black/5">
-                          <img src={img.url} alt={img.title} className="w-full h-full object-cover" />
+                        <div className="relative bg-muted/20">
+                          <img src={img.url} alt={img.title} className="w-full h-auto" />
                           <button type="button" onClick={() => removeCatalogImage(img.mediaId)}
                             className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/50 text-white hover:bg-destructive transition-colors cursor-pointer"
                           >

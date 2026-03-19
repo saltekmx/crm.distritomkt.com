@@ -248,39 +248,39 @@ export default function ProjectsPage() {
         </Select>
       </div>
 
-      <div className="card-modern overflow-hidden">
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
-              <th className="px-6 py-4 font-medium">Código</th>
-              <th className="px-6 py-4 font-medium">Nombre</th>
-              <th className="px-6 py-4 font-medium">Cliente</th>
-              <th className="px-6 py-4 font-medium">Tipo</th>
-              <th className="px-6 py-4 font-medium">Estado Op.</th>
-              <th className="px-6 py-4 font-medium">Estado Admin.</th>
-              <th className="px-6 py-4 font-medium">Responsable</th>
-              <th className="px-6 py-4 font-medium">Entrega</th>
-              <th className="px-6 py-4 font-medium w-14"></th>
+            <tr className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+              <th className="px-4 py-3 font-medium">Código</th>
+              <th className="px-4 py-3 font-medium">Nombre</th>
+              <th className="px-4 py-3 font-medium">Cliente</th>
+              <th className="px-4 py-3 font-medium">Tipo</th>
+              <th className="px-4 py-3 font-medium">Estado Op.</th>
+              <th className="px-4 py-3 font-medium">Estado Adm.</th>
+              <th className="px-4 py-3 font-medium">Responsable</th>
+              <th className="px-4 py-3 font-medium">Entrega</th>
+              <th className="px-4 py-3 font-medium w-10"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/30">
+          <tbody className="divide-y divide-border/40">
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
-                  <td className="px-6 py-5"><div className="h-3.5 w-20 rounded bg-muted animate-pulse" /></td>
-                  <td className="px-6 py-5"><div className="h-3.5 w-32 rounded bg-muted animate-pulse" /></td>
-                  <td className="px-6 py-5"><div className="h-3.5 w-24 rounded bg-muted animate-pulse" /></td>
-                  <td className="px-6 py-5"><div className="h-6 w-20 rounded-full bg-muted animate-pulse" /></td>
-                  <td className="px-6 py-5"><div className="h-6 w-20 rounded-full bg-muted animate-pulse" /></td>
-                  <td className="px-6 py-5"><div className="h-6 w-20 rounded-full bg-muted animate-pulse" /></td>
-                  <td className="px-6 py-5"><div className="h-3.5 w-16 rounded bg-muted animate-pulse" /></td>
-                  <td className="px-6 py-5"><div className="h-3.5 w-20 rounded bg-muted animate-pulse" /></td>
-                  <td className="px-6 py-5"><div className="h-8 w-8 rounded bg-muted animate-pulse" /></td>
+                  <td className="px-4 py-3"><div className="h-3 w-16 rounded bg-muted animate-pulse" /></td>
+                  <td className="px-4 py-3"><div className="h-3 w-32 rounded bg-muted animate-pulse" /></td>
+                  <td className="px-4 py-3"><div className="h-3 w-24 rounded bg-muted animate-pulse" /></td>
+                  <td className="px-4 py-3"><div className="h-5 w-16 rounded-full bg-muted animate-pulse" /></td>
+                  <td className="px-4 py-3"><div className="h-5 w-16 rounded-full bg-muted animate-pulse" /></td>
+                  <td className="px-4 py-3"><div className="h-5 w-16 rounded-full bg-muted animate-pulse" /></td>
+                  <td className="px-4 py-3"><div className="h-3 w-16 rounded bg-muted animate-pulse" /></td>
+                  <td className="px-4 py-3"><div className="h-3 w-16 rounded bg-muted animate-pulse" /></td>
+                  <td className="px-4 py-3"><div className="h-6 w-6 rounded bg-muted animate-pulse" /></td>
                 </tr>
               ))
             ) : projects.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-6 py-20 text-center">
+                <td colSpan={9} className="px-4 py-20 text-center">
                   <FolderKanban className="mx-auto h-10 w-10 text-muted-foreground/40" />
                   <p className="mt-3 text-sm font-medium text-muted-foreground">
                     {search || filterTipo || filterStatus ? 'No se encontraron resultados' : 'No hay proyectos registrados'}
@@ -298,42 +298,42 @@ export default function ProjectsPage() {
                 return (
                   <tr
                     key={project.id}
-                    className="transition-colors hover:bg-muted/20 group cursor-pointer"
+                    className="transition-colors hover:bg-muted/20 cursor-pointer group"
                     onClick={() => navigate(ROUTES.PROJECTS_DETAIL(project.codigo))}
                   >
-                    <td className="px-6 py-4">
-                      <span className="text-xs font-mono text-muted-foreground">{project.codigo}</span>
+                    <td className="px-4 py-3">
+                      <span className="text-[11px] font-mono text-muted-foreground">{project.codigo}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       <span className="text-sm font-medium">{project.nombre}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       <span className="text-sm text-muted-foreground">{project.cliente_nombre || '—'}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       <span className="text-xs text-muted-foreground">{tipoLabel}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       {opStatus ? (
                         <StatusBadge label={opStatus.label} color={opStatus.color} />
                       ) : (
                         <span className="text-xs text-muted-foreground">{project.status_operativo}</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       {admStatus ? (
                         <StatusBadge label={admStatus.label} color={admStatus.color} />
                       ) : (
                         <span className="text-xs text-muted-foreground">{project.status_administrativo}</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-muted-foreground">{project.responsable_nombre || '—'}</span>
+                    <td className="px-4 py-3">
+                      <span className="text-xs text-muted-foreground">{project.responsable_nombre || '—'}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       <span className="text-xs text-muted-foreground">{formatDate(project.fecha_entrega)}</span>
                     </td>
-                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">

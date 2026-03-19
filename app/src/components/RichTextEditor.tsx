@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import Link from '@tiptap/extension-link'
+// Link removed — StarterKit handles it
 import {
   Bold, Italic, List, ListOrdered, Heading2, Undo, Redo, RemoveFormatting,
 } from 'lucide-react'
@@ -48,7 +48,6 @@ export function RichTextEditor({ value, onChange, placeholder, error }: RichText
         heading: { levels: [2, 3] },
       }),
       Placeholder.configure({ placeholder: placeholder ?? '' }),
-      Link.configure({ openOnClick: false }),
     ],
     content: value,
     onUpdate: ({ editor: e }) => {
