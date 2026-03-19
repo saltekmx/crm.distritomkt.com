@@ -1291,7 +1291,7 @@ function MaterialsTable({
   }
 
   const tableContent = (
-    <table className="w-full text-sm min-w-[900px]">
+    <table className="w-full text-sm min-w-[1100px]">
       <thead>
         <tr className="border-b border-border bg-muted/30 print:bg-gray-100">
           {hasSelection && (
