@@ -62,6 +62,27 @@ Review assignment: Roberto ↔ Gonzalo (cross-review)
 
 ---
 
+## Changelog
+
+After completing a set of changes, **always update `CHANGELOG.md`** at the repo root before pushing. This file is used by QA to know what to test. Format:
+
+```markdown
+## [YYYY-MM-DD]
+
+### Added
+- Brief description of new feature
+
+### Changed
+- Brief description of modification
+
+### Fixed
+- Brief description of bug fix
+```
+
+Group entries by date (newest first). Keep descriptions short and QA-friendly — focus on **what changed from the user's perspective**, not implementation details.
+
+---
+
 ## Behavioral Rules
 
 These rules come from `.saltek/agent/SOUL.md`. Follow them in every interaction.
