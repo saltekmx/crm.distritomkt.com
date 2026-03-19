@@ -1,3 +1,0 @@
-[submodule ".saltek"]
-	path = .saltek
-	url = git@github.com:saltekmx/saltek-awesome-agent.git
