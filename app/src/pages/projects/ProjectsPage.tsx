@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { projectsApi } from '@/services/api'
+import { usePermissions } from '@/hooks/usePermissions'
 import { ROUTES } from '@/lib/routes'
 import {
   PROJECT_TYPES, OPERATIVE_STATUSES,
@@ -79,6 +80,8 @@ function StatusBadge({ label, color }: { label: string; color?: string }) {
 export default function ProjectsPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { hasPermission } = usePermissions()
+  const canWrite = hasPermission('proyectos:write')
 
   const search = searchParams.get('buscar') ?? ''
   const page = Math.max(1, Number(searchParams.get('pagina')) || 1)
@@ -189,13 +192,15 @@ export default function ProjectsPage() {
         subtitle={loading ? undefined : `${total} proyecto${total !== 1 ? 's' : ''}${search ? ` encontrado${total !== 1 ? 's' : ''}` : ''}`}
         icon={<FolderKanban className="h-5 w-5" />}
         actions={
-          <Button
-            className="gap-2"
-            onClick={() => navigate(ROUTES.PROJECTS_NEW)}
-          >
-            <Plus className="h-4 w-4" />
-            Nuevo Proyecto
-          </Button>
+          canWrite ? (
+            <Button
+              className="gap-2"
+              onClick={() => navigate(ROUTES.PROJECTS_NEW)}
+            >
+              <Plus className="h-4 w-4" />
+              Nuevo Proyecto
+            </Button>
+          ) : undefined
         }
       />
 
@@ -305,7 +310,7 @@ export default function ProjectsPage() {
                       <span className="text-[11px] font-mono text-muted-foreground">{project.codigo}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-sm font-medium">{project.nombre}</span>
+                      <span className={`text-sm font-medium${deleteTarget?.id === project.id ? ' invisible' : ''}`}>{project.nombre}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-muted-foreground">{project.cliente_nombre || '—'}</span>

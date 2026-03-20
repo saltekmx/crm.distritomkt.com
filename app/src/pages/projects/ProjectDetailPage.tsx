@@ -512,9 +512,30 @@ export default function ProjectDetailPage() {
         </nav>
       </div>
 
+      {/* Stepper — always visible across all tabs */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <ProgressTimeline
+          steps={operativeSteps}
+          currentKey={project.status_operativo}
+          color="cyan"
+          icon={Package}
+          title="Estado Operativo"
+          subtitle="Avance del trabajo"
+          completedKeys={operativeCompletedKeys}
+        />
+        <ProgressTimeline
+          steps={financialSteps}
+          currentKey={project.status_administrativo}
+          color="yellow"
+          icon={Banknote}
+          title="Estado Administrativo"
+          subtitle="Facturación y cobranza"
+        />
+      </div>
+
       {/* Tab Content */}
       {activeTab === 'overview' && (
-        <OverviewTab project={project} timeline={timeline} tz={tz} operativeCompletedKeys={operativeCompletedKeys} />
+        <OverviewTab project={project} timeline={timeline} tz={tz} />
       )}
       {activeTab === 'proposal' && (
         <ProposalTab project={project} onUpdate={(p) => { setProject(p); refreshTimeline() }} />
@@ -560,30 +581,9 @@ export default function ProjectDetailPage() {
 // Overview Tab
 // ---------------------------------------------------------------------------
 
-function OverviewTab({ project, timeline, tz, operativeCompletedKeys }: { project: Project; timeline: TimelineEntry[]; tz: string; operativeCompletedKeys?: Set<string> }) {
+function OverviewTab({ project, timeline, tz }: { project: Project; timeline: TimelineEntry[]; tz: string }) {
   return (
     <div className="space-y-6">
-      {/* Dual Status Cards */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <ProgressTimeline
-          steps={operativeSteps}
-          currentKey={project.status_operativo}
-          color="cyan"
-          icon={Package}
-          title="Estado Operativo"
-          subtitle="Avance del trabajo"
-          completedKeys={operativeCompletedKeys}
-        />
-        <ProgressTimeline
-          steps={financialSteps}
-          currentKey={project.status_administrativo}
-          color="yellow"
-          icon={Banknote}
-          title="Estado Administrativo"
-          subtitle="Facturación y cobranza"
-        />
-      </div>
-
       {/* Activity */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="p-4 border-b border-border">
