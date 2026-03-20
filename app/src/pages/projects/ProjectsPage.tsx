@@ -310,7 +310,7 @@ export default function ProjectsPage() {
                       <span className="text-[11px] font-mono text-muted-foreground">{project.codigo}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-sm font-medium${deleteTarget?.id === project.id ? ' invisible' : ''}`}>{project.nombre}</span>
+                      <span className="text-sm font-medium">{deleteTarget?.id === project.id ? '\u00A0' : project.nombre}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-muted-foreground">{project.cliente_nombre || '—'}</span>

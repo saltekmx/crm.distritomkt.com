@@ -1,2 +1,10 @@
 # Cloudflare Wrangler
 .wrangler/
+
+# Root-level dependencies (e2e)
+node_modules/
+
+# Playwright
+test-results/
+playwright-report/
+app/test-results/
