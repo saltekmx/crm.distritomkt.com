@@ -671,13 +671,38 @@ function ProposalTab({ project, onUpdate }: { project: Project; onUpdate: (p: Pr
     }
   }
 
+  const aiTools = [
+    { label: 'Marry Me ChatGPT', url: 'https://chatgpt.com/g/g-69b0930b52108191bb1a4c11cebbacaf-marry-me' },
+    { label: 'Marry Me Gemini', url: 'https://gemini.google.com/gem/b63785bbe63d?usp=sharing' },
+    { label: 'Surprise Me ChatGPT', url: 'https://chatgpt.com/g/g-69b1c08a56088191900d849f8a52d436-surprise-me' },
+    { label: 'Surprise Me Gemini', url: 'https://gemini.google.com/gem/a2c2e336acc0?usp=sharing' },
+  ]
+
   return (
     <div className="space-y-6">
       {/* File upload section — reuses MediaGallery with preview, fullscreen, delete */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="p-4 border-b border-border">
-          <h3 className="font-semibold">Archivos de propuesta</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">PDF, presentaciones, documentos e imágenes</p>
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold">Archivos de propuesta</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">PDF, presentaciones, documentos e imágenes</p>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <Sparkles className="h-4 w-4" />
+                AI Tools
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {aiTools.map((tool) => (
+                <DropdownMenuItem key={tool.label} onClick={() => window.open(tool.url, '_blank')} className="gap-2 cursor-pointer">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  {tool.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="p-4">
           <MediaGallery

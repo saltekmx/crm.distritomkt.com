@@ -304,6 +304,41 @@ export const cotizacionesApi = {
     api.delete(`/cotizaciones/${id}`),
 }
 
+// Ordenes de Compra endpoints — matches /api/v1/ordenes-compra/*
+export const ordenesCompraApi = {
+  list: (projectId: number | string) =>
+    api.get('/ordenes-compra', { params: { project_id: projectId } }),
+  get: (id: number | string) =>
+    api.get(`/ordenes-compra/${id}`),
+  create: (data: Record<string, unknown>) =>
+    api.post('/ordenes-compra', data),
+  update: (id: number | string, data: Record<string, unknown>) =>
+    api.patch(`/ordenes-compra/${id}`, data),
+  delete: (id: number | string) =>
+    api.delete(`/ordenes-compra/${id}`),
+  send: (id: number | string) =>
+    api.post(`/ordenes-compra/${id}/enviar`),
+  changeEstado: (id: number | string, estado: string) =>
+    api.post(`/ordenes-compra/${id}/estado`, { nuevo_estado: estado }),
+  uploadPayment: (id: number | string, file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post(`/ordenes-compra/${id}/comprobante`, fd)
+  },
+}
+
+// Public API (no auth) for magic link pages
+const publicApi = axios.create({ baseURL: api.defaults.baseURL })
+export const publicOcApi = {
+  get: (token: string) => publicApi.get(`/ordenes-compra/p/${token}`),
+  uploadInvoice: (token: string, xml: File, pdf?: File) => {
+    const fd = new FormData()
+    fd.append('xml', xml)
+    if (pdf) fd.append('pdf', pdf)
+    return publicApi.post(`/ordenes-compra/p/${token}/factura`, fd)
+  },
+}
+
 // AI endpoints — matches /api/v1/ai/*
 export interface AiConversation {
   id: number
