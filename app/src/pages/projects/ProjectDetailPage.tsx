@@ -20,7 +20,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { toast } from 'sonner'
-import { projectsApi, proveedoresApi, cotizacionesApi } from '@/services/api'
+import { projectsApi, proveedoresApi, cotizacionesApi, ordenesCompraApi } from '@/services/api'
 import { mediaApi, type MediaFile } from '@/lib/media'
 import { ROUTES } from '@/lib/routes'
 import {
@@ -570,7 +570,10 @@ export default function ProjectDetailPage() {
           onCotizacionesChange={(list) => { setCotizacionesSummary({ count: list.length, hasApproved: list.some((q) => q.estado === 'aprobada') }); refreshTimeline() }}
         />
       )}
-      {activeTab !== 'overview' && activeTab !== 'proposal' && activeTab !== 'materials' && activeTab !== 'quotes' && activeTab !== 'files' && activeTab !== 'history' && (
+      {activeTab === 'orders' && (
+        <PurchaseOrdersTab project={project} onActivityChange={refreshTimeline} />
+      )}
+      {activeTab !== 'overview' && activeTab !== 'proposal' && activeTab !== 'materials' && activeTab !== 'quotes' && activeTab !== 'orders' && activeTab !== 'files' && activeTab !== 'history' && (
         <PlaceholderTab tabId={activeTab} />
       )}
     </div>
@@ -581,7 +584,8 @@ export default function ProjectDetailPage() {
 // Overview Tab
 // ---------------------------------------------------------------------------
 
-function OverviewTab({ project, timeline, tz }: { project: Project; timeline: TimelineEntry[]; tz: string }) {
+function OverviewTab({ project: _project, timeline, tz }: { project: Project; timeline: TimelineEntry[]; tz: string }) {
+  void _project
   return (
     <div className="space-y-6">
       {/* Activity */}
@@ -4959,6 +4963,551 @@ function HistoryTab({ timeline, tz }: { timeline: TimelineEntry[]; tz: string })
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Purchase Orders Tab
+// ---------------------------------------------------------------------------
+
+interface PurchaseOrder {
+  id: number
+  codigo: string
+  proyecto_id: number
+  nombre: string
+  supplier_id: number | null
+  proveedor_nombre: string
+  proveedor_email: string
+  proveedor_telefono: string | null
+  estado: string
+  items: QuotationItem[] | null
+  notas: string | null
+  magic_token: string
+  enviada_en: string | null
+  factura_xml_key: string | null
+  factura_pdf_key: string | null
+  factura_uuid: string | null
+  factura_rfc_emisor: string | null
+  factura_total: number | null
+  factura_moneda: string | null
+  factura_mismatch: boolean
+  facturada_en: string | null
+  comprobante_pago_key: string | null
+  pagada_en: string | null
+  creado_en: string
+  actualizado_en: string
+}
+
+const OC_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  borrador: { label: 'Borrador', color: 'bg-muted text-muted-foreground' },
+  enviada: { label: 'Enviada', color: 'bg-blue-500/15 text-blue-500' },
+  facturada: { label: 'Facturada', color: 'bg-amber-500/15 text-amber-500' },
+  por_pagar: { label: 'Por pagar', color: 'bg-orange-500/15 text-orange-500' },
+  pagada: { label: 'Pagada', color: 'bg-emerald-500/15 text-emerald-500' },
+  cerrada: { label: 'Cerrada', color: 'bg-violet-500/15 text-violet-500' },
+}
+
+function PurchaseOrdersTab({ project, onActivityChange }: { project: Project; onActivityChange?: () => void }) {
+  const [orders, setOrders] = useState<PurchaseOrder[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+
+  const fetchOrders = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await ordenesCompraApi.list(project.id)
+      const list = (res.data ?? []) as PurchaseOrder[]
+      list.sort((a, b) => b.id - a.id)
+      setOrders(list)
+    } catch {
+      toast.error('Error al cargar órdenes de compra')
+    } finally {
+      setLoading(false)
+    }
+  }, [project.id])
+
+  useEffect(() => { fetchOrders() }, [fetchOrders])
+
+  const handleCreate = async () => {
+    try {
+      const num = orders.length + 1
+      const created = await ordenesCompraApi.create({
+        proyecto_id: project.id,
+        nombre: `Orden de compra v${num}`,
+        proveedor_nombre: '',
+        proveedor_email: '',
+      })
+      const oc = created.data as PurchaseOrder
+      setOrders((prev) => [oc, ...prev])
+      setEditingId(oc.id)
+      onActivityChange?.()
+    } catch {
+      toast.error('Error al crear orden de compra')
+    }
+  }
+
+  const handleDelete = async (ocId: number) => {
+    setDeleteConfirmId(null)
+    try {
+      await ordenesCompraApi.delete(ocId)
+      if (editingId === ocId) setEditingId(null)
+      await fetchOrders()
+      onActivityChange?.()
+      toast.success('Orden de compra eliminada')
+    } catch {
+      toast.error('Error al eliminar')
+    }
+  }
+
+  const handleSend = async (ocId: number) => {
+    try {
+      await ordenesCompraApi.send(ocId)
+      await fetchOrders()
+      onActivityChange?.()
+      toast.success('Orden de compra enviada al proveedor')
+    } catch {
+      toast.error('Error al enviar')
+    }
+  }
+
+  const handleEstado = async (ocId: number, estado: string) => {
+    try {
+      await ordenesCompraApi.changeEstado(ocId, estado)
+      await fetchOrders()
+      onActivityChange?.()
+    } catch {
+      toast.error('Error al cambiar estado')
+    }
+  }
+
+  const handleUpdate = async (ocId: number, data: Record<string, unknown>) => {
+    try {
+      await ordenesCompraApi.update(ocId, data)
+      await fetchOrders()
+    } catch {
+      toast.error('Error al guardar')
+    }
+  }
+
+  const editingOrder = editingId ? orders.find((o) => o.id === editingId) ?? null : null
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  // Editor view
+  if (editingOrder) {
+    return (
+      <PurchaseOrderEditor
+        order={editingOrder}
+        onBack={() => setEditingId(null)}
+        onUpdate={(data) => handleUpdate(editingOrder.id, data)}
+        onSend={() => handleSend(editingOrder.id)}
+        onEstado={(estado) => handleEstado(editingOrder.id, estado)}
+      />
+    )
+  }
+
+  // List view
+  return (
+    <div className="space-y-3">
+      {orders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-border bg-card">
+          <div className="w-14 h-14 rounded-2xl bg-primary/5 flex items-center justify-center mb-4">
+            <ShoppingCart className="h-7 w-7 text-primary/60" />
+          </div>
+          <h3 className="text-base font-semibold mb-1">Sin órdenes de compra</h3>
+          <p className="text-muted-foreground text-sm text-center max-w-sm mb-5">
+            Crea una orden de compra para enviar al proveedor.
+          </p>
+          <Button size="sm" className="gap-2" onClick={handleCreate}>
+            <Plus className="h-4 w-4" />
+            Crear orden de compra
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={handleCreate}>
+              <Plus className="h-4 w-4" />
+              Nueva OC
+            </Button>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {orders.map((oc) => {
+              const items = oc.items ?? []
+              const total = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
+              const status = OC_STATUS_CONFIG[oc.estado] ?? OC_STATUS_CONFIG.borrador
+              return (
+                <div
+                  key={oc.id}
+                  className="rounded-lg border border-border bg-card hover:border-primary/30 transition-all cursor-pointer p-3"
+                  onClick={() => setEditingId(oc.id)}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-sm truncate">{oc.nombre}</h4>
+                      <p className="text-[10px] text-muted-foreground font-mono">{oc.codigo}</p>
+                    </div>
+                    <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 whitespace-nowrap', status.color)}>
+                      {status.label}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-base font-bold">{fmtMXN(total)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground mb-2">
+                    <span>{oc.proveedor_nombre || 'Sin proveedor'}</span>
+                    <span>·</span>
+                    <span>{items.length} item{items.length !== 1 ? 's' : ''}</span>
+                    <span>·</span>
+                    <span>{new Date(oc.creado_en).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(oc.id) }}
+                      className="ml-auto p-1.5 rounded-md text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                      title="Eliminar"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Delete confirmation */}
+      <AlertDialog open={deleteConfirmId !== null} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar orden de compra</AlertDialogTitle>
+            <AlertDialogDescription>Esta orden de compra se eliminará permanentemente.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { if (deleteConfirmId) handleDelete(deleteConfirmId) }}>
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Purchase Order Editor
+// ---------------------------------------------------------------------------
+
+function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
+  order: PurchaseOrder
+  onBack: () => void
+  onUpdate: (data: Record<string, unknown>) => void
+  onSend: () => void
+  onEstado: (estado: string) => void
+}) {
+  const [nombre, setNombre] = useState(order.nombre)
+  const [provNombre, setProvNombre] = useState(order.proveedor_nombre)
+  const [provEmail, setProvEmail] = useState(order.proveedor_email)
+  const [provTel, setProvTel] = useState(order.proveedor_telefono ?? '')
+  const [items, setItems] = useState<QuotationItem[]>(order.items ?? [])
+  const [notas, setNotas] = useState(order.notas ?? '')
+  const [dirty, setDirty] = useState(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const isDraft = order.estado === 'borrador'
+
+  // Auto-save with debounce
+  const scheduleAutoSave = useCallback(() => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      onUpdate({
+        nombre, proveedor_nombre: provNombre, proveedor_email: provEmail,
+        proveedor_telefono: provTel || null, items, notas: notas || null,
+      })
+      setDirty(false)
+    }, 2000)
+  }, [nombre, provNombre, provEmail, provTel, items, notas, onUpdate])
+
+  useEffect(() => {
+    if (dirty) scheduleAutoSave()
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
+  }, [dirty, scheduleAutoSave])
+
+  const markDirty = () => setDirty(true)
+
+  const handleSave = () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    onUpdate({
+      nombre, proveedor_nombre: provNombre, proveedor_email: provEmail,
+      proveedor_telefono: provTel || null, items, notas: notas || null,
+    })
+    setDirty(false)
+    toast.success('Guardado')
+  }
+
+  // Items
+  const total = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
+  const itemGroups = (() => {
+    const groups: Array<{ categoria: string; items: Array<{ item: QuotationItem; idx: number }> }> = []
+    items.forEach((item, idx) => {
+      const cat = item.categoria || 'GENERAL'
+      let group = groups.find((g) => g.categoria === cat)
+      if (!group) { group = { categoria: cat, items: [] }; groups.push(group) }
+      group.items.push({ item, idx })
+    })
+    return groups
+  })()
+
+  const updateItem = (idx: number, field: keyof QuotationItem, value: string | number) => {
+    setItems((prev) => { const next = [...prev]; next[idx] = { ...next[idx], [field]: value }; return next })
+    markDirty()
+  }
+  const removeItem = (idx: number) => { setItems((prev) => prev.filter((_, i) => i !== idx)); markDirty() }
+  const addItem = () => {
+    const lastCat = items.length > 0 ? items[items.length - 1].categoria : 'GENERAL'
+    setItems((prev) => [...prev, { concepto: '', cantidad: 1, precio_unitario: 0, categoria: lastCat }])
+  }
+
+  const statusSteps = ['borrador', 'enviada', 'facturada', 'por_pagar', 'pagada', 'cerrada']
+  const currentStepIdx = statusSteps.indexOf(order.estado)
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer">
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div className="flex-1 min-w-0">
+          {isDraft ? (
+            <input
+              className="text-lg font-bold bg-transparent border-0 outline-none w-full"
+              value={nombre}
+              onChange={(e) => { setNombre(e.target.value); markDirty() }}
+              placeholder="Nombre de la orden"
+            />
+          ) : (
+            <h2 className="text-lg font-bold">{nombre}</h2>
+          )}
+          <p className="text-xs text-muted-foreground font-mono">{order.codigo}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {isDraft && (
+            <>
+              <Button variant="outline" size="sm" className="gap-2" onClick={handleSave} disabled={!dirty}>
+                <Save className="h-4 w-4" />
+                Guardar
+              </Button>
+              <Button size="sm" className="gap-2" disabled={!provEmail} onClick={onSend}>
+                <Send className="h-4 w-4" />
+                Enviar
+              </Button>
+            </>
+          )}
+          {order.estado === 'facturada' && (
+            <Button size="sm" className="gap-2" onClick={() => onEstado('por_pagar')}>
+              Marcar por pagar
+            </Button>
+          )}
+          {order.estado === 'pagada' && (
+            <Button size="sm" className="gap-2" onClick={() => onEstado('cerrada')}>
+              Cerrar OC
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Status bar */}
+      <div className="flex items-center gap-1">
+        {statusSteps.map((step, i) => {
+          const config = OC_STATUS_CONFIG[step]
+          const isActive = i <= currentStepIdx
+          return (
+            <div key={step} className="flex items-center gap-1 flex-1">
+              <div className={cn(
+                'flex-1 h-2 rounded-full transition-colors',
+                isActive ? 'bg-primary' : 'bg-muted',
+              )} />
+              {i === currentStepIdx && (
+                <span className="text-[10px] font-semibold text-primary whitespace-nowrap">{config.label}</span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Supplier section */}
+      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Proveedor</h3>
+        {isDraft ? (
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Nombre</label>
+              <SupplierCombobox
+                value={provNombre}
+                onChange={(name) => {
+                  setProvNombre(name); markDirty()
+                  if (name) {
+                    proveedoresApi.list({ buscar: name, limit: 1 }).then((res) => {
+                      const data = res.data as { elementos: Array<{ nombre: string; email: string | null; telefono: string | null }> }
+                      const match = data.elementos.find((s) => s.nombre === name)
+                      if (match) {
+                        setProvEmail(match.email ?? ''); setProvTel(match.telefono ?? ''); markDirty()
+                      }
+                    }).catch(() => {})
+                  }
+                }}
+                placeholder="Buscar proveedor..."
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Email *</label>
+              <input
+                type="email" value={provEmail}
+                onChange={(e) => { setProvEmail(e.target.value); markDirty() }}
+                className="mt-0.5 w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                placeholder="correo@proveedor.com"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Teléfono</label>
+              <input
+                type="tel" value={provTel}
+                onChange={(e) => { setProvTel(e.target.value); markDirty() }}
+                className="mt-0.5 w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                placeholder="55 1234 5678"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-4 text-sm">
+            <span className="font-medium">{provNombre}</span>
+            <span className="text-muted-foreground">{provEmail}</span>
+            {provTel && <span className="text-muted-foreground">{provTel}</span>}
+          </div>
+        )}
+      </div>
+
+      {/* Items table */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Items ({items.length})
+          </span>
+          {isDraft && (
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-7" onClick={addItem}>
+              <Plus className="h-3 w-3" /> Agregar
+            </Button>
+          )}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
+            <thead>
+              <tr className="border-b border-border bg-muted/20">
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs min-w-[240px]">Concepto</th>
+                <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs w-16">Cant.</th>
+                <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs w-28">Precio Unit.</th>
+                <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs w-28">Total</th>
+                {isDraft && <th className="w-8" />}
+              </tr>
+            </thead>
+            <tbody>
+              {itemGroups.map((group, gi) => {
+                const catSubtotal = group.items.reduce((s, { item }) => s + item.cantidad * item.precio_unitario, 0)
+                return (
+                  <Fragment key={`${gi}-${group.categoria}`}>
+                    <tr className="bg-primary/5 border-t border-primary/20">
+                      <td colSpan={isDraft ? 5 : 4} className="px-3 py-2">
+                        <span className="text-xs font-bold text-primary uppercase tracking-wider">{group.categoria}</span>
+                      </td>
+                    </tr>
+                    {group.items.map(({ item, idx }) => (
+                      <tr key={idx} className="border-b border-border/30 hover:bg-muted/10 transition-colors group">
+                        <td className="px-3 py-1.5 pl-6">
+                          {isDraft ? (
+                            <DeferredTextarea
+                              className="w-full bg-transparent border-0 outline-none text-sm resize-none min-h-[1.75rem]"
+                              value={item.concepto ?? ''}
+                              onChange={(v) => updateItem(idx, 'concepto', v)}
+                              placeholder="Descripción"
+                            />
+                          ) : (
+                            <span className="whitespace-pre-wrap">{item.concepto}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 text-right">{isDraft ? <input type="number" className="w-full bg-transparent border-0 outline-none text-right text-sm" value={item.cantidad} min={0} onChange={(e) => updateItem(idx, 'cantidad', Number(e.target.value) || 0)} /> : item.cantidad}</td>
+                        <td className="px-3 py-1.5 text-right">{isDraft ? <input type="number" className="w-full bg-transparent border-0 outline-none text-right text-sm" value={item.precio_unitario} min={0} step="0.01" onChange={(e) => updateItem(idx, 'precio_unitario', Number(e.target.value) || 0)} /> : fmtMXN(item.precio_unitario)}</td>
+                        <td className="px-3 py-1.5 text-right text-muted-foreground">{fmtMXN(item.cantidad * item.precio_unitario)}</td>
+                        {isDraft && (
+                          <td className="px-1 py-1.5">
+                            <button onClick={() => removeItem(idx)} className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all cursor-pointer">
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                    <tr className="border-b border-border/60 bg-muted/5">
+                      <td colSpan={3} className="px-3 py-1.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Subtotal {group.categoria}</td>
+                      <td className="px-3 py-1.5 text-right text-sm font-bold">{fmtMXN(catSubtotal)}</td>
+                      {isDraft && <td />}
+                    </tr>
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="border-t border-border bg-muted/10 px-4 py-3">
+          <div className="flex justify-end gap-6 text-base">
+            <span className="font-bold">Subtotal</span>
+            <span className="font-bold w-28 text-right">{fmtMXN(total)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Invoice info (when facturada+) */}
+      {order.facturada_en && (
+        <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Factura del proveedor</h3>
+          <div className="grid grid-cols-3 gap-3 text-sm">
+            <div><span className="text-xs text-muted-foreground block">UUID</span><span className="font-mono text-xs">{order.factura_uuid ?? '—'}</span></div>
+            <div><span className="text-xs text-muted-foreground block">RFC Emisor</span>{order.factura_rfc_emisor ?? '—'}</div>
+            <div><span className="text-xs text-muted-foreground block">Total Factura</span>{order.factura_total != null ? fmtMXN(order.factura_total) : '—'}</div>
+          </div>
+          {order.factura_mismatch && (
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 text-sm font-medium">
+              El total de la factura no coincide con el total de la OC
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Notes */}
+      <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Notas</h3>
+        {isDraft ? (
+          <textarea
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+            rows={3} value={notas}
+            onChange={(e) => { setNotas(e.target.value); markDirty() }}
+            placeholder="Notas internas..."
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{notas || 'Sin notas'}</p>
+        )}
       </div>
     </div>
   )
