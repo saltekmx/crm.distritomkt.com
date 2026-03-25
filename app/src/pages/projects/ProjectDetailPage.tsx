@@ -5013,6 +5013,7 @@ function PurchaseOrdersTab({ project, onActivityChange }: { project: Project; on
         nombre: `Orden de compra v${num}`,
         proveedor_nombre: '',
         proveedor_email: '',
+        items: [{ concepto: '', cantidad: 1, precio_unitario: 0, categoria: 'GENERAL' }],
       })
       const oc = created.data as PurchaseOrder
       setOrders((prev) => [oc, ...prev])
@@ -5146,13 +5147,33 @@ function PurchaseOrdersTab({ project, onActivityChange }: { project: Project; on
                     <span>{new Date(oc.creado_en).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</span>
                   </div>
                   <div className="flex items-center gap-1">
+                    {oc.estado === 'borrador' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleSend(oc.id) }}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                        title="Enviar"
+                        disabled={!oc.proveedor_email}
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <button
-                      onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(oc.id) }}
-                      className="ml-auto p-1.5 rounded-md text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                      title="Eliminar"
+                      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`${window.location.origin}/oc/${oc.magic_token}`); toast.success('Link copiado') }}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                      title="Copiar magic link"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Copy className="h-3.5 w-3.5" />
                     </button>
+                    <div className="flex-1" />
+                    {oc.estado === 'borrador' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(oc.id) }}
+                        className="p-1.5 rounded-md text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               )
@@ -5198,23 +5219,30 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
   const [items, setItems] = useState<QuotationItem[]>(order.items ?? [])
   const [notas, setNotas] = useState(order.notas ?? '')
   const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const previewRef = useRef<HTMLIFrameElement>(null)
 
   const isDraft = order.estado === 'borrador'
 
+  const getData = useCallback(() => ({
+    nombre, proveedor_nombre: provNombre, proveedor_email: provEmail,
+    proveedor_telefono: provTel || null, items, notas: notas || null,
+  }), [nombre, provNombre, provEmail, provTel, items, notas])
+
   // Auto-save with debounce
   const scheduleAutoSave = useCallback(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      onUpdate({
-        nombre, proveedor_nombre: provNombre, proveedor_email: provEmail,
-        proveedor_telefono: provTel || null, items, notas: notas || null,
-      })
+    saveTimer.current = setTimeout(async () => {
+      setSaving(true)
+      await onUpdate(getData())
+      setSaving(false)
       setDirty(false)
+      setLastSaved(new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))
     }, 2000)
-  }, [nombre, provNombre, provEmail, provTel, items, notas, onUpdate])
+  }, [getData, onUpdate])
 
   useEffect(() => {
     if (dirty) scheduleAutoSave()
@@ -5223,13 +5251,13 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
 
   const markDirty = () => setDirty(true)
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    onUpdate({
-      nombre, proveedor_nombre: provNombre, proveedor_email: provEmail,
-      proveedor_telefono: provTel || null, items, notas: notas || null,
-    })
+    setSaving(true)
+    await onUpdate(getData())
+    setSaving(false)
     setDirty(false)
+    setLastSaved(new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))
     toast.success('Guardado')
   }
 
@@ -5322,6 +5350,8 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
           <p className="text-xs text-muted-foreground font-mono">{order.codigo}</p>
         </div>
         <div className="flex items-center gap-2">
+          {saving && <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Guardando...</span>}
+          {!saving && lastSaved && <span className="text-xs text-muted-foreground">Guardado {lastSaved}</span>}
           {isDraft && (
             <>
               <Button variant="outline" size="sm" className="gap-2" onClick={handleSave} disabled={!dirty}>
@@ -5330,7 +5360,7 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button size="sm" className="gap-2" disabled={!provEmail}>
+                  <Button size="sm" className="gap-2" disabled={!provEmail || items.length === 0}>
                     <Send className="h-4 w-4" />
                     Enviar
                   </Button>
@@ -5405,6 +5435,10 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
           </Button>
         </div>
       )}
+
+      {/* Two column layout when preview is on */}
+      <div className={cn('gap-5', showPreview ? 'grid grid-cols-2' : '')}>
+      <div className="space-y-5">
 
       {/* Supplier section */}
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
@@ -5567,21 +5601,24 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">{notas || 'Sin notas'}</p>
         )}
       </div>
-
-      {/* Preview panel */}
+      </div>{/* end editor column */}
+      {/* Preview side panel */}
       {showPreview && (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-border flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Vista previa</span>
+        <div>
+          <div className="rounded-xl border border-border bg-card overflow-hidden sticky top-4">
+            <div className="px-4 py-2.5 border-b border-border">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Vista previa</span>
+            </div>
+            <iframe
+              ref={previewRef}
+              className="w-full bg-white"
+              style={{ height: 'calc(100vh - 200px)' }}
+              title="Vista previa OC"
+            />
           </div>
-          <iframe
-            ref={previewRef}
-            className="w-full bg-white"
-            style={{ height: '600px' }}
-            title="Vista previa OC"
-          />
         </div>
       )}
+      </div>{/* end grid wrapper */}
     </div>
   )
 }

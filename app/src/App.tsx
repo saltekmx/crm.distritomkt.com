@@ -18,6 +18,7 @@ import ProveedoresPage from '@/pages/proveedores/ProveedoresPage'
 import ProveedorFormPage from '@/pages/proveedores/ProveedorFormPage'
 import MediaPage from '@/pages/MediaPage'
 import ProfilePage from '@/pages/ProfilePage'
+import SupplierInvoiceUploadPage from '@/pages/purchase-orders/SupplierInvoiceUploadPage'
 import RolesPage from '@/pages/admin/RolesPage'
 import RoleFormPage from '@/pages/admin/RoleFormPage'
 
@@ -175,6 +176,9 @@ function App() {
           />
           <Route path="/perfil" element={<ProfilePage />} />
         </Route>
+
+        {/* Public routes (no auth, no layout) */}
+        <Route path="/oc/:token" element={<SupplierInvoiceUploadPage />} />
 
         {/* 404 */}
         <Route path="*" element={<NotFoundPage />} />
