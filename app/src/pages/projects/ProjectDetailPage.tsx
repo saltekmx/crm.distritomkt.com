@@ -4957,6 +4957,9 @@ interface PurchaseOrder {
   proveedor_telefono: string | null
   estado: string
   items: QuotationItem[] | null
+  imagenes: CatalogImage[] | null
+  imagen_cols: number
+  imagen_rows: number
   notas: string | null
   magic_token: string
   enviada_en: string | null
@@ -5217,20 +5220,80 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
   const [provEmail, setProvEmail] = useState(order.proveedor_email)
   const [provTel, setProvTel] = useState(order.proveedor_telefono ?? '')
   const [items, setItems] = useState<QuotationItem[]>(order.items ?? [])
+  const [imagenes, setImagenes] = useState<CatalogImage[]>(order.imagenes ?? [])
   const [notas, setNotas] = useState(order.notas ?? '')
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<string | null>(null)
-  const [showPreview, setShowPreview] = useState(false)
+  const [showPreview, setShowPreview] = useState(true)
+  const [showCatalog, setShowCatalog] = useState((order.imagenes ?? []).length > 0)
+  const [projectMedia, setProjectMedia] = useState<MediaFile[]>([])
+  const [loadingMedia, setLoadingMedia] = useState(false)
+  const [uploadingCatalog, setUploadingCatalog] = useState(false)
+  const catalogUploadRef = useRef<HTMLInputElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const previewRef = useRef<HTMLIFrameElement>(null)
+  const catalogUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Load project media for catalog
+  useEffect(() => {
+    setLoadingMedia(true)
+    mediaApi.list({ entity_type: 'project', entity_id: order.proyecto_id, tipo: 'image' }).then((res) => {
+      const files = res.data as MediaFile[]
+      setProjectMedia(files)
+      // Refresh expired URLs
+      if (imagenes.length > 0 && files.length > 0) {
+        const urlMap = new Map(files.map((f) => [f.id, f.url]))
+        const needsRefresh = imagenes.some((img) => { const u = urlMap.get(img.mediaId); return u && u !== img.url })
+        if (needsRefresh) setImagenes((prev) => prev.map((img) => { const u = urlMap.get(img.mediaId); return u ? { ...img, url: u } : img }))
+      }
+    }).catch(() => setProjectMedia([])).finally(() => setLoadingMedia(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.proyecto_id])
+
+  const toggleCatalogImage = async (file: MediaFile) => {
+    const existing = imagenes.find((c) => c.mediaId === file.id)
+    if (existing) { setImagenes((prev) => prev.filter((c) => c.mediaId !== file.id)); markDirty(); return }
+    try {
+      const res = await fetch(file.url)
+      const blob = await res.blob()
+      const dataUrl = await new Promise<string>((resolve) => { const r = new FileReader(); r.onloadend = () => resolve(r.result as string); r.readAsDataURL(blob) })
+      const dims = await new Promise<{ w: number; h: number }>((resolve) => { const img = new window.Image(); img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight }); img.src = dataUrl })
+      setImagenes((prev) => [...prev, { mediaId: file.id, url: file.url, dataUrl, filename: file.nombre, title: file.nombre, description: '', naturalW: dims.w, naturalH: dims.h }])
+      markDirty()
+    } catch { /* skip */ }
+  }
+
+  const updateCatalogImage = (mediaId: number, field: 'title' | 'description', value: string) => {
+    if (catalogUpdateTimer.current) clearTimeout(catalogUpdateTimer.current)
+    catalogUpdateTimer.current = setTimeout(() => {
+      setImagenes((prev) => prev.map((c) => c.mediaId === mediaId ? { ...c, [field]: value } : c))
+      markDirty()
+    }, 500)
+  }
+
+  const removeCatalogImage = (mediaId: number) => { setImagenes((prev) => prev.filter((c) => c.mediaId !== mediaId)); markDirty() }
+
+  const handleCatalogUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files?.length) return
+    setUploadingCatalog(true)
+    try {
+      const uploaded = await mediaApi.upload(Array.from(files), { entity_type: 'project', entity_id: order.proyecto_id, folder: 'projects' })
+      const rawData = uploaded.data as unknown
+      const newFiles = (Array.isArray(rawData) ? rawData : ((rawData as Record<string, unknown>).archivos ?? [])) as MediaFile[]
+      setProjectMedia((prev) => [...prev, ...newFiles])
+      for (const file of newFiles) await toggleCatalogImage(file)
+    } catch { toast.error('Error al subir imágenes') }
+    finally { setUploadingCatalog(false); if (catalogUploadRef.current) catalogUploadRef.current.value = '' }
+  }
 
   const isDraft = order.estado === 'borrador'
 
   const getData = useCallback(() => ({
     nombre, proveedor_nombre: provNombre, proveedor_email: provEmail,
-    proveedor_telefono: provTel || null, items, notas: notas || null,
-  }), [nombre, provNombre, provEmail, provTel, items, notas])
+    proveedor_telefono: provTel || null, items, imagenes, notas: notas || null,
+  }), [nombre, provNombre, provEmail, provTel, items, imagenes, notas])
 
   // Auto-save with debounce
   const scheduleAutoSave = useCallback(() => {
@@ -5568,6 +5631,99 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
             <span className="font-bold w-28 text-right">{fmtMXN(total)}</span>
           </div>
         </div>
+      </div>
+
+      {/* Catalog images */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div
+          role="button"
+          onClick={() => setShowCatalog(!showCatalog)}
+          className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium cursor-pointer hover:bg-muted/20 transition-colors select-none"
+        >
+          {showCatalog ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          <Image className="h-4 w-4 text-primary" />
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Catálogo de imágenes</span>
+          {imagenes.length > 0 && <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{imagenes.length}</span>}
+          <div className="flex-1" />
+          {showCatalog && (
+            <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground">Por página</span>
+                <input type="number" min={1} max={6} value={order.imagen_rows ?? 3}
+                  onChange={() => { /* rows per page — saved with next auto-save */ }}
+                  className="w-8 rounded border border-border bg-background-elevated px-1 py-0.5 text-center text-xs outline-none"
+                />
+              </div>
+              <button type="button" onClick={() => catalogUploadRef.current?.click()} disabled={uploadingCatalog}
+                className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {uploadingCatalog ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                Subir
+              </button>
+              <input ref={catalogUploadRef} type="file" accept="image/*" multiple className="hidden" onChange={handleCatalogUpload} />
+            </div>
+          )}
+        </div>
+        {showCatalog && (
+          <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+            {loadingMedia ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-3">
+                <Loader2 className="h-3 w-3 animate-spin" /> Cargando imágenes...
+              </div>
+            ) : projectMedia.length === 0 ? (
+              <div className="text-center py-6 border border-dashed border-border rounded-lg">
+                <Image className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground mb-2">No hay imágenes en este proyecto.</p>
+                <button type="button" onClick={() => catalogUploadRef.current?.click()} disabled={uploadingCatalog}
+                  className="text-xs text-primary hover:text-primary/80 transition-colors cursor-pointer font-medium disabled:opacity-50"
+                >{uploadingCatalog ? 'Subiendo...' : 'Subir imágenes'}</button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-8 gap-1.5">
+                {projectMedia.map((file) => {
+                  const isSelected = imagenes.some((c) => c.mediaId === file.id)
+                  return (
+                    <button key={file.id} type="button" onClick={() => toggleCatalogImage(file)}
+                      className={cn('relative aspect-square rounded-md overflow-hidden border-2 transition-all cursor-pointer', isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-transparent hover:border-border')}
+                    >
+                      <img src={file.url} alt={file.nombre} className="w-full h-full object-cover" />
+                      {isSelected && <div className="absolute inset-0 bg-primary/20 flex items-center justify-center"><Check className="h-4 w-4 text-primary drop-shadow" /></div>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {imagenes.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-muted-foreground">Seleccionadas ({imagenes.length})</p>
+                {imagenes.map((img) => (
+                  <div key={img.mediaId} className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/10 overflow-hidden">
+                    <div className="relative bg-muted/20">
+                      <img src={img.url} alt={img.title} className="w-full h-auto" />
+                      <button type="button" onClick={() => removeCatalogImage(img.mediaId)}
+                        className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/50 text-white hover:bg-destructive transition-colors cursor-pointer"
+                      ><X className="h-3.5 w-3.5" /></button>
+                    </div>
+                    <div className="py-3 pr-3 flex flex-col gap-2">
+                      <input type="text" value={img.title}
+                        onChange={(e) => updateCatalogImage(img.mediaId, 'title', e.target.value)}
+                        className="w-full text-sm font-semibold rounded border border-border bg-background px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-primary/20"
+                        placeholder="Título de la imagen"
+                      />
+                      <div className="flex-1 min-h-0 overflow-y-auto rounded border border-border bg-background">
+                        <RichTextEditor
+                          value={img.description}
+                          onChange={(html) => updateCatalogImage(img.mediaId, 'description', html)}
+                          placeholder="Descripción de la imagen..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Invoice info (when facturada+) */}
