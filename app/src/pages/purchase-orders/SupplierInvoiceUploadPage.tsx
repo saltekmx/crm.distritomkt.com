@@ -11,7 +11,71 @@ interface OcPublic {
   ya_facturo: boolean
 }
 
+interface XmlPreview {
+  valid: boolean
+  error?: string
+  version?: string
+  total?: number
+  subtotal?: number
+  moneda?: string
+  folio?: string
+  serie?: string
+  fecha?: string
+  rfc_emisor?: string
+  nombre_emisor?: string
+  uuid?: string
+}
+
 const fmtMXN = (n: number) => n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 })
+
+function parseCfdiXml(text: string): XmlPreview {
+  try {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(text, 'text/xml')
+
+    // Check parse errors
+    const parseError = doc.querySelector('parsererror')
+    if (parseError) return { valid: false, error: 'El archivo no es un XML válido.' }
+
+    const root = doc.documentElement
+    const tag = root.tagName || ''
+
+    // Must be a CFDI Comprobante
+    if (!tag.includes('Comprobante')) return { valid: false, error: 'El XML no es un CFDI válido. Debe ser un Comprobante.' }
+
+    const version = root.getAttribute('Version') || root.getAttribute('version') || ''
+    if (!version.startsWith('3') && !version.startsWith('4')) return { valid: false, error: `Versión CFDI no soportada: ${version}. Se requiere 3.3 o 4.0.` }
+
+    const total = parseFloat(root.getAttribute('Total') || '0')
+    const subtotal = parseFloat(root.getAttribute('SubTotal') || '0')
+    if (total <= 0) return { valid: false, error: 'El CFDI no tiene un Total válido.' }
+
+    // Find Emisor (namespace-agnostic)
+    const emisor = root.querySelector('Emisor')
+    const rfc_emisor = emisor?.getAttribute('Rfc') || ''
+    const nombre_emisor = emisor?.getAttribute('Nombre') || ''
+
+    // Find TimbreFiscalDigital UUID
+    const timbre = root.querySelector('TimbreFiscalDigital')
+    const uuid = timbre?.getAttribute('UUID') || ''
+
+    return {
+      valid: true,
+      version,
+      total,
+      subtotal,
+      moneda: root.getAttribute('Moneda') || 'MXN',
+      folio: root.getAttribute('Folio') || '',
+      serie: root.getAttribute('Serie') || '',
+      fecha: root.getAttribute('Fecha') || '',
+      rfc_emisor,
+      nombre_emisor,
+      uuid,
+    }
+  } catch {
+    return { valid: false, error: 'Error al leer el archivo XML.' }
+  }
+}
 
 export default function SupplierInvoiceUploadPage() {
   const { token } = useParams<{ token: string }>()
@@ -19,6 +83,7 @@ export default function SupplierInvoiceUploadPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [xmlFile, setXmlFile] = useState<File | null>(null)
+  const [xmlPreview, setXmlPreview] = useState<XmlPreview | null>(null)
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<{ mensaje: string; mismatch: boolean } | null>(null)
@@ -30,6 +95,19 @@ export default function SupplierInvoiceUploadPage() {
       .catch(() => setError('Orden de compra no encontrada o enlace inválido.'))
       .finally(() => setLoading(false))
   }, [token])
+
+  const handleXmlSelect = async (file: File | null) => {
+    setXmlFile(file)
+    setXmlPreview(null)
+    if (!file) return
+    try {
+      const text = await file.text()
+      const preview = parseCfdiXml(text)
+      setXmlPreview(preview)
+    } catch {
+      setXmlPreview({ valid: false, error: 'No se pudo leer el archivo.' })
+    }
+  }
 
   const handleUpload = async () => {
     if (!token || !xmlFile) return
@@ -120,16 +198,47 @@ export default function SupplierInvoiceUploadPage() {
                   <>
                     <h3 className="font-semibold text-gray-900 mb-3">Subir Factura</h3>
                     <p className="text-sm text-gray-500 mb-4">Sube tu factura en formato XML (CFDI) y opcionalmente el PDF.</p>
-                    <div className="space-y-3">
+                    <div className="space-y-4">
+                      {/* XML input */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">XML (CFDI) *</label>
                         <input
                           type="file"
                           accept=".xml"
-                          onChange={(e) => setXmlFile(e.target.files?.[0] ?? null)}
+                          onChange={(e) => handleXmlSelect(e.target.files?.[0] ?? null)}
                           className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
                         />
                       </div>
+
+                      {/* XML validation preview */}
+                      {xmlPreview && (
+                        xmlPreview.valid ? (
+                          <div className="p-4 rounded-lg bg-green-50 border border-green-200 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <svg className="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                              <span className="font-semibold text-green-700 text-sm">CFDI válido</span>
+                              <span className="text-xs text-green-600 ml-auto">v{xmlPreview.version}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs text-green-800">
+                              <div><span className="text-green-600">UUID:</span> <span className="font-mono">{xmlPreview.uuid?.slice(0, 18)}...</span></div>
+                              <div><span className="text-green-600">RFC Emisor:</span> {xmlPreview.rfc_emisor}</div>
+                              <div><span className="text-green-600">Emisor:</span> {xmlPreview.nombre_emisor}</div>
+                              <div><span className="text-green-600">Folio:</span> {xmlPreview.serie}{xmlPreview.folio}</div>
+                              <div><span className="text-green-600">Subtotal:</span> {fmtMXN(xmlPreview.subtotal ?? 0)}</div>
+                              <div><span className="text-green-600">Total:</span> <strong>{fmtMXN(xmlPreview.total ?? 0)}</strong> {xmlPreview.moneda}</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-4 rounded-lg bg-red-50 border border-red-200">
+                            <div className="flex items-center gap-2">
+                              <svg className="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                              <span className="font-semibold text-red-700 text-sm">{xmlPreview.error}</span>
+                            </div>
+                          </div>
+                        )
+                      )}
+
+                      {/* PDF input */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">PDF (opcional)</label>
                         <input
@@ -139,9 +248,11 @@ export default function SupplierInvoiceUploadPage() {
                           className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100 cursor-pointer"
                         />
                       </div>
+
+                      {/* Submit */}
                       <button
                         onClick={handleUpload}
-                        disabled={!xmlFile || uploading}
+                        disabled={!xmlFile || !xmlPreview?.valid || uploading}
                         className="w-full py-3 px-4 rounded-lg bg-[#d4af37] text-white font-semibold text-sm hover:bg-[#c5a030] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         {uploading ? 'Subiendo...' : 'Subir Factura'}
