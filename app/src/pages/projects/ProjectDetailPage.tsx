@@ -4960,6 +4960,7 @@ interface PurchaseOrder {
   imagenes: CatalogImage[] | null
   imagen_cols: number
   imagen_rows: number
+  iva_porcentaje: number
   notas: string | null
   magic_token: string
   enviada_en: string | null
@@ -5124,7 +5125,7 @@ function PurchaseOrdersTab({ project, onActivityChange }: { project: Project; on
             {orders.map((oc) => {
               const items = oc.items ?? []
               const subtotal = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
-              const totalConIva = subtotal * 1.16
+              const totalConIva = subtotal * (1 + (oc.iva_porcentaje ?? 16) / 100)
               const status = OC_STATUS_CONFIG[oc.estado] ?? OC_STATUS_CONFIG.borrador
               return (
                 <div
@@ -5223,6 +5224,7 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
   const [provTel, setProvTel] = useState(order.proveedor_telefono ?? '')
   const [items, setItems] = useState<QuotationItem[]>(order.items ?? [])
   const [imagenes, setImagenes] = useState<CatalogImage[]>(order.imagenes ?? [])
+  const [ivaPct, setIvaPct] = useState(order.iva_porcentaje ?? 16)
   const [notas, setNotas] = useState(order.notas ?? '')
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -5294,8 +5296,8 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
 
   const getData = useCallback(() => ({
     nombre, proveedor_nombre: provNombre, proveedor_email: provEmail,
-    proveedor_telefono: provTel || null, items, imagenes, notas: notas || null,
-  }), [nombre, provNombre, provEmail, provTel, items, imagenes, notas])
+    proveedor_telefono: provTel || null, items, imagenes, iva_porcentaje: ivaPct, notas: notas || null,
+  }), [nombre, provNombre, provEmail, provTel, items, imagenes, ivaPct, notas])
 
   // Auto-save with debounce
   const scheduleAutoSave = useCallback(() => {
@@ -5376,10 +5378,10 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
 <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #d4af37;padding-bottom:14px;margin-bottom:20px"><div><h1 style="font-size:18px;font-weight:700;color:#0f172a">Orden de Compra ${order.codigo}</h1><h2 style="font-size:12px;color:#64748b;font-weight:400;margin-top:2px">${nombre}</h2></div><img src="/logo-dark.png" style="height:32px" /></div>
 <div style="display:flex;gap:32px;margin-bottom:16px;font-size:11px"><div style="flex:1"><div style="font-weight:600;color:#475569;font-size:9px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Proveedor</div><div>${provNombre}</div><div style="font-size:10px;color:#64748b">${provEmail}</div></div><div style="flex:1"><div style="font-weight:600;color:#475569;font-size:9px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Fecha</div><div>${today}</div></div></div>
 <table><thead><tr><th style="width:30px;text-align:center">#</th><th>Concepto</th><th style="width:70px;text-align:center">Cantidad</th><th style="width:100px;text-align:right">Precio Unit.</th></tr></thead><tbody>${tableRows}</tbody></table>
-<div class="totals"><div class="line"><span>Subtotal:</span><span>${fmtMXN(total)}</span></div><div class="line"><span>IVA (16%):</span><span>${fmtMXN(total * 0.16)}</span></div><div class="line total"><span>Total:</span><span>${fmtMXN(total * 1.16)}</span></div></div>
+<div class="totals"><div class="line"><span>Subtotal:</span><span>${fmtMXN(total)}</span></div><div class="line"><span>IVA (${ivaPct}%):</span><span>${fmtMXN(total * (ivaPct / 100))}</span></div><div class="line total"><span>Total:</span><span>${fmtMXN(total * (1 + ivaPct / 100))}</span></div></div>
 <div class="footer">Generado por DistritoMKT CRM — ${today}</div>
 </body></html>`
-  }, [items, nombre, provNombre, provEmail, order.codigo, total])
+  }, [items, nombre, provNombre, provEmail, order.codigo, total, ivaPct])
 
   // Write preview
   useEffect(() => {
@@ -5632,13 +5634,21 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
             <span className="text-muted-foreground">Subtotal</span>
             <span className="font-medium w-28 text-right">{fmtMXN(total)}</span>
           </div>
-          <div className="flex justify-end gap-6 text-sm">
-            <span className="text-muted-foreground">IVA (16%)</span>
-            <span className="font-medium w-28 text-right">{fmtMXN(total * 0.16)}</span>
+          <div className="flex justify-end items-center gap-2 text-sm">
+            <span className="text-muted-foreground">IVA</span>
+            {isDraft ? (
+              <div className="flex items-center gap-0.5">
+                <input type="number" className="w-12 bg-transparent border border-border rounded px-1.5 py-0.5 text-right text-sm outline-none focus:ring-1 focus:ring-primary/20" value={ivaPct} min={0} max={100} onChange={(e) => { setIvaPct(Number(e.target.value) || 0); markDirty() }} />
+                <span className="text-muted-foreground text-xs">%</span>
+              </div>
+            ) : (
+              <span className="text-muted-foreground">({ivaPct}%)</span>
+            )}
+            <span className="font-medium w-28 text-right">{fmtMXN(total * (ivaPct / 100))}</span>
           </div>
           <div className="flex justify-end gap-6 text-base pt-1 border-t border-border/50">
             <span className="font-bold">Total</span>
-            <span className="font-bold w-28 text-right">{fmtMXN(total * 1.16)}</span>
+            <span className="font-bold w-28 text-right">{fmtMXN(total * (1 + ivaPct / 100))}</span>
           </div>
         </div>
       </div>
