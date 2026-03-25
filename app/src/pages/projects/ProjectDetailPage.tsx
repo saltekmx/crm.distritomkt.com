@@ -5031,6 +5031,7 @@ function PurchaseOrdersTab({ project, ocIdParam, onActivityChange }: { project: 
       const oc = created.data as PurchaseOrder
       setOrders((prev) => [oc, ...prev])
       setEditingId(oc.id)
+      navigate(`/proyectos/${projectSlug}/ordenes/${oc.id}`, { replace: true })
       onActivityChange?.()
     } catch {
       toast.error('Error al crear orden de compra')
