@@ -24,7 +24,7 @@ import { projectsApi, proveedoresApi, cotizacionesApi, ordenesCompraApi } from '
 import { mediaApi, type MediaFile } from '@/lib/media'
 import { ROUTES } from '@/lib/routes'
 import {
-  getOperativeStatus, getAdminStatus, getProjectTypeLabel,
+  getProjectTypeLabel,
 } from '@/lib/projects'
 import { useUser } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -187,24 +187,8 @@ const tabs: Array<{ id: TabType; label: string; icon: typeof Activity }> = [
 // Helpers
 // ---------------------------------------------------------------------------
 
-const PILL_COLORS: Record<string, string> = {
-  gray: 'bg-gray-500/10 text-gray-500',
-  blue: 'bg-blue-500/10 text-blue-500',
-  yellow: 'bg-yellow-500/10 text-yellow-500',
-  orange: 'bg-orange-500/10 text-orange-500',
-  purple: 'bg-purple-500/10 text-purple-500',
-  emerald: 'bg-emerald-500/10 text-emerald-500',
-  slate: 'bg-slate-500/10 text-slate-500',
-}
 
-function StatusPill({ label, color }: { label: string; color: string }) {
-  const cls = PILL_COLORS[color] ?? PILL_COLORS.gray
-  return (
-    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${cls}`}>
-      {label}
-    </span>
-  )
-}
+
 
 function formatDate(d: string | null | undefined, tz?: string): string {
   if (!d) return '—'
@@ -405,8 +389,6 @@ export default function ProjectDetailPage() {
   if (quotationGenerated || cotizacionesSummary.count > 0) operativeCompletedKeys.add('cotizado')
   if (cotizacionesSummary.hasApproved) operativeCompletedKeys.add('aprobado')
 
-  const opStatus = getOperativeStatus(project.status_operativo)
-  const admStatus = getAdminStatus(project.status_administrativo)
   const tipoLabel = getProjectTypeLabel(project.tipo, project.subcategoria)
 
   return (
@@ -421,14 +403,6 @@ export default function ProjectDetailPage() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
-            <div className="flex items-center gap-3 mb-1">
-              {opStatus && (
-                <StatusPill label={opStatus.label} color={opStatus.color} />
-              )}
-              {admStatus && (
-                <StatusPill label={admStatus.label} color={admStatus.color} />
-              )}
-            </div>
             <h1 className="text-2xl font-bold flex items-center gap-3">
               {project.nombre}
               <span className="text-sm font-mono font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">{project.codigo}</span>
@@ -512,30 +486,30 @@ export default function ProjectDetailPage() {
         </nav>
       </div>
 
-      {/* Stepper — always visible across all tabs */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <ProgressTimeline
-          steps={operativeSteps}
-          currentKey={project.status_operativo}
-          color="cyan"
-          icon={Package}
-          title="Estado Operativo"
-          subtitle="Avance del trabajo"
-          completedKeys={operativeCompletedKeys}
-        />
-        <ProgressTimeline
-          steps={financialSteps}
-          currentKey={project.status_administrativo}
-          color="yellow"
-          icon={Banknote}
-          title="Estado Administrativo"
-          subtitle="Facturación y cobranza"
-        />
-      </div>
-
       {/* Tab Content */}
       {activeTab === 'overview' && (
-        <OverviewTab project={project} timeline={timeline} tz={tz} />
+        <>
+          <div className="grid gap-4 md:grid-cols-2">
+            <ProgressTimeline
+              steps={operativeSteps}
+              currentKey={project.status_operativo}
+              color="cyan"
+              icon={Package}
+              title="Estado Operativo"
+              subtitle="Avance del trabajo"
+              completedKeys={operativeCompletedKeys}
+            />
+            <ProgressTimeline
+              steps={financialSteps}
+              currentKey={project.status_administrativo}
+              color="yellow"
+              icon={Banknote}
+              title="Estado Administrativo"
+              subtitle="Facturación y cobranza"
+            />
+          </div>
+          <OverviewTab project={project} timeline={timeline} tz={tz} />
+        </>
       )}
       {activeTab === 'proposal' && (
         <ProposalTab project={project} onUpdate={(p) => { setProject(p); refreshTimeline() }} />
