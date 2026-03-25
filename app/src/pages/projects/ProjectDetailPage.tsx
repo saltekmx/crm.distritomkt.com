@@ -5198,7 +5198,9 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
   const [items, setItems] = useState<QuotationItem[]>(order.items ?? [])
   const [notas, setNotas] = useState(order.notas ?? '')
   const [dirty, setDirty] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewRef = useRef<HTMLIFrameElement>(null)
 
   const isDraft = order.estado === 'borrador'
 
@@ -5254,6 +5256,48 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
     setItems((prev) => [...prev, { concepto: '', cantidad: 1, precio_unitario: 0, categoria: lastCat }])
   }
 
+  // Build preview HTML
+  const buildOcPreviewHtml = useCallback(() => {
+    const today = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })
+    const groups: Map<string, QuotationItem[]> = new Map()
+    for (const item of items) {
+      const cat = item.categoria || 'General'
+      const arr = groups.get(cat) ?? []
+      arr.push(item)
+      groups.set(cat, arr)
+    }
+    let tableRows = ''
+    let rowNum = 0
+    for (const [cat, catItems] of groups) {
+      tableRows += `<tr style="background:#f1f5f9;font-weight:700;text-transform:uppercase;font-size:10px;color:#334155"><td colspan="4" style="padding:5px 8px">${cat}</td></tr>`
+      let catSub = 0
+      for (const item of catItems) {
+        rowNum++
+        const lt = item.cantidad * item.precio_unitario
+        catSub += lt
+        tableRows += `<tr><td style="text-align:center;color:#94a3b8;width:30px;padding:5px 8px">${rowNum}</td><td style="padding:5px 8px;white-space:pre-wrap">${item.concepto ?? ''}</td><td style="text-align:center;padding:5px 8px">${item.cantidad}</td><td style="text-align:right;padding:5px 8px">${fmtMXN(item.precio_unitario)}</td></tr>`
+      }
+      tableRows += `<tr style="background:#fafbfc;font-size:10px;color:#475569;border-bottom:2px solid #e2e8f0"><td colspan="3" style="text-align:right;padding:5px 8px;font-weight:700">Subtotal ${cat}</td><td style="text-align:right;padding:5px 8px;font-weight:700">${fmtMXN(catSub)}</td></tr>`
+    }
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light"><style>*{margin:0;padding:0;box-sizing:border-box}html,body{background:#fff;color-scheme:light}body{font-family:-apple-system,'Segoe UI',sans-serif;color:#1e293b;font-size:12px;line-height:1.5;padding:32px}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:11px}thead th{background:#f8fafc;border-bottom:2px solid #cbd5e1;padding:6px 8px;text-align:left;font-weight:600;color:#475569;font-size:10px;text-transform:uppercase}tbody td{padding:5px 8px;border-bottom:1px solid #e2e8f0}.totals{margin-top:12px;text-align:right;font-size:11px}.totals .line{display:flex;justify-content:flex-end;gap:24px;padding:3px 0}.totals .line.total{font-weight:700;font-size:13px;border-top:2px solid #cbd5e1;padding-top:6px;margin-top:4px}.footer{margin-top:32px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center}</style></head><body>
+<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #d4af37;padding-bottom:14px;margin-bottom:20px"><div><h1 style="font-size:18px;font-weight:700;color:#0f172a">Orden de Compra ${order.codigo}</h1><h2 style="font-size:12px;color:#64748b;font-weight:400;margin-top:2px">${nombre}</h2></div><img src="/logo-dark.png" style="height:32px" /></div>
+<div style="display:flex;gap:32px;margin-bottom:16px;font-size:11px"><div style="flex:1"><div style="font-weight:600;color:#475569;font-size:9px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Proveedor</div><div>${provNombre}</div><div style="font-size:10px;color:#64748b">${provEmail}</div></div><div style="flex:1"><div style="font-weight:600;color:#475569;font-size:9px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Fecha</div><div>${today}</div></div></div>
+<table><thead><tr><th style="width:30px;text-align:center">#</th><th>Concepto</th><th style="width:70px;text-align:center">Cantidad</th><th style="width:100px;text-align:right">Precio Unit.</th></tr></thead><tbody>${tableRows}</tbody></table>
+<div class="totals"><div class="line total"><span>Subtotal:</span><span>${fmtMXN(total)}</span></div></div>
+<div class="footer">Generado por DistritoMKT CRM — ${today}</div>
+</body></html>`
+  }, [items, nombre, provNombre, provEmail, order.codigo, total])
+
+  // Write preview
+  useEffect(() => {
+    if (!showPreview || !previewRef.current) return
+    const doc = previewRef.current.contentDocument
+    if (!doc) return
+    doc.open()
+    doc.write(buildOcPreviewHtml())
+    doc.close()
+  }, [showPreview, buildOcPreviewHtml])
+
   const statusSteps = ['borrador', 'enviada', 'facturada', 'por_pagar', 'pagada', 'cerrada']
   const currentStepIdx = statusSteps.indexOf(order.estado)
 
@@ -5284,10 +5328,26 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
                 <Save className="h-4 w-4" />
                 Guardar
               </Button>
-              <Button size="sm" className="gap-2" disabled={!provEmail} onClick={onSend}>
-                <Send className="h-4 w-4" />
-                Enviar
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" className="gap-2" disabled={!provEmail}>
+                    <Send className="h-4 w-4" />
+                    Enviar
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Enviar orden de compra</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Se enviará un email a <strong>{provEmail}</strong> ({provNombre}) con la orden de compra y un link para subir factura. También recibirás una copia.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={onSend}>Enviar</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </>
           )}
           {order.estado === 'facturada' && (
@@ -5300,27 +5360,51 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
               Cerrar OC
             </Button>
           )}
+          <Button
+            variant={showPreview ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setShowPreview(!showPreview)}
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
-      {/* Status bar */}
-      <div className="flex items-center gap-1">
+      {/* Status steps */}
+      <div className="flex items-center gap-2 flex-wrap">
         {statusSteps.map((step, i) => {
           const config = OC_STATUS_CONFIG[step]
-          const isActive = i <= currentStepIdx
+          const isDone = i < currentStepIdx
+          const isCurrent = i === currentStepIdx
           return (
-            <div key={step} className="flex items-center gap-1 flex-1">
-              <div className={cn(
-                'flex-1 h-2 rounded-full transition-colors',
-                isActive ? 'bg-primary' : 'bg-muted',
-              )} />
-              {i === currentStepIdx && (
-                <span className="text-[10px] font-semibold text-primary whitespace-nowrap">{config.label}</span>
-              )}
-            </div>
+            <Fragment key={step}>
+              {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />}
+              <span className={cn(
+                'px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-all',
+                isCurrent ? config.color + ' ring-2 ring-primary/20' : isDone ? 'bg-emerald-500/10 text-emerald-500' : 'bg-muted/50 text-muted-foreground/40',
+              )}>
+                {isDone ? '✓ ' : ''}{config.label}
+              </span>
+            </Fragment>
           )
         })}
       </div>
+
+      {/* Magic link (visible when enviada+) */}
+      {order.magic_token && order.estado !== 'borrador' && (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-4 py-2">
+          <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="text-xs text-muted-foreground flex-1 truncate font-mono">
+            {window.location.origin}/oc/{order.magic_token}
+          </span>
+          <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-7 shrink-0" onClick={() => {
+            navigator.clipboard.writeText(`${window.location.origin}/oc/${order.magic_token}`)
+            toast.success('Link copiado')
+          }}>
+            <Copy className="h-3 w-3" /> Copiar link
+          </Button>
+        </div>
+      )}
 
       {/* Supplier section */}
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
@@ -5483,6 +5567,21 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">{notas || 'Sin notas'}</p>
         )}
       </div>
+
+      {/* Preview panel */}
+      {showPreview && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-border flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Vista previa</span>
+          </div>
+          <iframe
+            ref={previewRef}
+            className="w-full bg-white"
+            style={{ height: '600px' }}
+            title="Vista previa OC"
+          />
+        </div>
+      )}
     </div>
   )
 }
