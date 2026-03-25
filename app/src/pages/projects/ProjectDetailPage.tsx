@@ -5379,9 +5379,10 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
 <div style="display:flex;gap:32px;margin-bottom:16px;font-size:11px"><div style="flex:1"><div style="font-weight:600;color:#475569;font-size:9px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Proveedor</div><div>${provNombre}</div><div style="font-size:10px;color:#64748b">${provEmail}</div></div><div style="flex:1"><div style="font-weight:600;color:#475569;font-size:9px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Fecha</div><div>${today}</div></div></div>
 <table><thead><tr><th style="width:30px;text-align:center">#</th><th>Concepto</th><th style="width:70px;text-align:center">Cantidad</th><th style="width:100px;text-align:right">Precio Unit.</th></tr></thead><tbody>${tableRows}</tbody></table>
 <div class="totals"><div class="line"><span>Subtotal:</span><span>${fmtMXN(total)}</span></div><div class="line"><span>IVA (${ivaPct}%):</span><span>${fmtMXN(total * (ivaPct / 100))}</span></div><div class="line total"><span>Total:</span><span>${fmtMXN(total * (1 + ivaPct / 100))}</span></div></div>
+${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top:2px solid #e2e8f0"><div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:12px;border-bottom:2px solid #d4af37;padding-bottom:6px">Catálogo de Imágenes</div>${imagenes.map((img) => `<div style="display:grid;grid-template-columns:1fr 1fr;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:10px"><img src="${img.url}" style="width:100%;height:auto;display:block" /><div style="padding:12px 14px;border-left:1px solid #e2e8f0"><div style="font-weight:700;font-size:12px;color:#0f172a;margin-bottom:6px">${img.title}</div>${img.description ? `<div style="font-size:10px;color:#334155;line-height:1.6">${img.description}</div>` : ''}</div></div>`).join('')}</div>` : ''}
 <div class="footer">Generado por DistritoMKT CRM — ${today}</div>
 </body></html>`
-  }, [items, nombre, provNombre, provEmail, order.codigo, total, ivaPct])
+  }, [items, nombre, provNombre, provEmail, order.codigo, total, ivaPct, imagenes])
 
   // Write preview
   useEffect(() => {
