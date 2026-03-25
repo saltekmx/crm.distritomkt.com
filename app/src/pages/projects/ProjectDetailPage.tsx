@@ -5063,8 +5063,9 @@ function PurchaseOrdersTab({ project, onActivityChange }: { project: Project; on
 
   const handleUpdate = async (ocId: number, data: Record<string, unknown>) => {
     try {
-      await ordenesCompraApi.update(ocId, data)
-      await fetchOrders()
+      const res = await ordenesCompraApi.update(ocId, data)
+      // Update in-place without reloading entire list
+      setOrders((prev) => prev.map((o) => o.id === ocId ? (res.data as PurchaseOrder) : o))
     } catch {
       toast.error('Error al guardar')
     }
@@ -5122,7 +5123,8 @@ function PurchaseOrdersTab({ project, onActivityChange }: { project: Project; on
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {orders.map((oc) => {
               const items = oc.items ?? []
-              const total = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
+              const subtotal = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
+              const totalConIva = subtotal * 1.16
               const status = OC_STATUS_CONFIG[oc.estado] ?? OC_STATUS_CONFIG.borrador
               return (
                 <div
@@ -5140,7 +5142,7 @@ function PurchaseOrdersTab({ project, onActivityChange }: { project: Project; on
                     </span>
                   </div>
                   <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-base font-bold">{fmtMXN(total)}</span>
+                    <span className="text-base font-bold">{fmtMXN(totalConIva)}</span>
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-muted-foreground mb-2">
                     <span>{oc.proveedor_nombre || 'Sin proveedor'}</span>
@@ -5374,7 +5376,7 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
 <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #d4af37;padding-bottom:14px;margin-bottom:20px"><div><h1 style="font-size:18px;font-weight:700;color:#0f172a">Orden de Compra ${order.codigo}</h1><h2 style="font-size:12px;color:#64748b;font-weight:400;margin-top:2px">${nombre}</h2></div><img src="/logo-dark.png" style="height:32px" /></div>
 <div style="display:flex;gap:32px;margin-bottom:16px;font-size:11px"><div style="flex:1"><div style="font-weight:600;color:#475569;font-size:9px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Proveedor</div><div>${provNombre}</div><div style="font-size:10px;color:#64748b">${provEmail}</div></div><div style="flex:1"><div style="font-weight:600;color:#475569;font-size:9px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Fecha</div><div>${today}</div></div></div>
 <table><thead><tr><th style="width:30px;text-align:center">#</th><th>Concepto</th><th style="width:70px;text-align:center">Cantidad</th><th style="width:100px;text-align:right">Precio Unit.</th></tr></thead><tbody>${tableRows}</tbody></table>
-<div class="totals"><div class="line total"><span>Subtotal:</span><span>${fmtMXN(total)}</span></div></div>
+<div class="totals"><div class="line"><span>Subtotal:</span><span>${fmtMXN(total)}</span></div><div class="line"><span>IVA (16%):</span><span>${fmtMXN(total * 0.16)}</span></div><div class="line total"><span>Total:</span><span>${fmtMXN(total * 1.16)}</span></div></div>
 <div class="footer">Generado por DistritoMKT CRM — ${today}</div>
 </body></html>`
   }, [items, nombre, provNombre, provEmail, order.codigo, total])
@@ -5625,10 +5627,18 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
             </tbody>
           </table>
         </div>
-        <div className="border-t border-border bg-muted/10 px-4 py-3">
-          <div className="flex justify-end gap-6 text-base">
-            <span className="font-bold">Subtotal</span>
-            <span className="font-bold w-28 text-right">{fmtMXN(total)}</span>
+        <div className="border-t border-border bg-muted/10 px-4 py-3 space-y-1">
+          <div className="flex justify-end gap-6 text-sm">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span className="font-medium w-28 text-right">{fmtMXN(total)}</span>
+          </div>
+          <div className="flex justify-end gap-6 text-sm">
+            <span className="text-muted-foreground">IVA (16%)</span>
+            <span className="font-medium w-28 text-right">{fmtMXN(total * 0.16)}</span>
+          </div>
+          <div className="flex justify-end gap-6 text-base pt-1 border-t border-border/50">
+            <span className="font-bold">Total</span>
+            <span className="font-bold w-28 text-right">{fmtMXN(total * 1.16)}</span>
           </div>
         </div>
       </div>
