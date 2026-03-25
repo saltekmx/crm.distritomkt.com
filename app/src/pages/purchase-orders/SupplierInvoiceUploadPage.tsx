@@ -123,7 +123,8 @@ export default function SupplierInvoiceUploadPage() {
   }
 
   const items = oc?.items ?? []
-  const total = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
+  const subtotal = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
+  const totalConIva = subtotal * 1.16 // OC total with 16% IVA
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-start justify-center py-12 px-4">
@@ -150,9 +151,6 @@ export default function SupplierInvoiceUploadPage() {
                     <h2 className="text-lg font-bold text-gray-900">{oc.codigo}</h2>
                     <p className="text-sm text-gray-500">{oc.nombre}</p>
                   </div>
-                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600">
-                    {oc.estado}
-                  </span>
                 </div>
                 <p className="text-sm text-gray-600">Proveedor: <strong>{oc.proveedor_nombre}</strong></p>
               </div>
@@ -179,8 +177,10 @@ export default function SupplierInvoiceUploadPage() {
                     ))}
                   </tbody>
                 </table>
-                <div className="flex justify-end mt-3 pt-3 border-t border-gray-200">
-                  <span className="text-lg font-bold text-gray-900">Subtotal: {fmtMXN(total)}</span>
+                <div className="space-y-1 mt-3 pt-3 border-t border-gray-200 text-right">
+                  <div className="text-sm text-gray-500">Subtotal: {fmtMXN(subtotal)}</div>
+                  <div className="text-sm text-gray-500">IVA (16%): {fmtMXN(subtotal * 0.16)}</div>
+                  <div className="text-lg font-bold text-gray-900">Total: {fmtMXN(totalConIva)}</div>
                 </div>
               </div>
 
@@ -236,6 +236,20 @@ export default function SupplierInvoiceUploadPage() {
                             </div>
                           </div>
                         )
+                      )}
+
+                      {/* Total mismatch warning */}
+                      {xmlPreview?.valid && xmlPreview.total && Math.abs(xmlPreview.total - totalConIva) > 0.01 && (
+                        <div className="p-4 rounded-lg bg-red-50 border border-red-200">
+                          <div className="flex items-center gap-2 mb-1">
+                            <svg className="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                            <span className="font-semibold text-red-700 text-sm">El total de la factura no coincide con la orden de compra</span>
+                          </div>
+                          <div className="text-xs text-red-600 ml-7">
+                            OC: {fmtMXN(totalConIva)} · Factura: {fmtMXN(xmlPreview.total)}
+                            {' '}(diferencia: {fmtMXN(Math.abs(xmlPreview.total - totalConIva))})
+                          </div>
+                        </div>
                       )}
 
                       {/* PDF input */}

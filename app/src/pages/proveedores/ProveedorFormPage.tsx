@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 
 const supplierSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido'),
+  rfc: z.string().optional(),
   contacto: z.string().optional(),
   email: z.string().email('Email invalido').optional().or(z.literal('')),
   telefono: z.string().optional(),
@@ -27,6 +28,7 @@ type SupplierFormData = z.infer<typeof supplierSchema>
 interface SupplierState {
   id: number
   nombre: string
+  rfc: string | null
   contacto: string | null
   email: string | null
   telefono: string | null
@@ -52,6 +54,7 @@ export default function ProveedorFormPage() {
     resolver: zodResolver(supplierSchema),
     defaultValues: {
       nombre: '',
+      rfc: '',
       contacto: '',
       email: '',
       telefono: '',
@@ -67,6 +70,7 @@ export default function ProveedorFormPage() {
     if (state?.id === Number(id)) {
       reset({
         nombre: state.nombre ?? '',
+        rfc: state.rfc ?? '',
         contacto: state.contacto ?? '',
         email: state.email ?? '',
         telefono: state.telefono ?? '',
@@ -83,6 +87,7 @@ export default function ProveedorFormPage() {
         const s = res.data
         reset({
           nombre: s.nombre ?? '',
+          rfc: s.rfc ?? '',
           contacto: s.contacto ?? '',
           email: s.email ?? '',
           telefono: s.telefono ?? '',
@@ -156,7 +161,7 @@ export default function ProveedorFormPage() {
           </h3>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
+            <div>
               <Label htmlFor="nombre">Nombre *</Label>
               <Input
                 id="nombre"
@@ -167,6 +172,16 @@ export default function ProveedorFormPage() {
               {errors.nombre && (
                 <p className="mt-1 text-xs text-destructive">{errors.nombre.message}</p>
               )}
+            </div>
+
+            <div>
+              <Label htmlFor="rfc">RFC</Label>
+              <Input
+                id="rfc"
+                {...register('rfc')}
+                placeholder="ABC123456XYZ"
+                className="uppercase"
+              />
             </div>
 
             <div>

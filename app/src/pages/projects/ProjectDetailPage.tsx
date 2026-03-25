@@ -5053,8 +5053,8 @@ function PurchaseOrdersTab({ project, ocIdParam, onActivityChange }: { project: 
 
   const handleSend = async (ocId: number) => {
     try {
-      await ordenesCompraApi.send(ocId)
-      await fetchOrders()
+      const res = await ordenesCompraApi.send(ocId)
+      setOrders((prev) => prev.map((o) => o.id === ocId ? (res.data as PurchaseOrder) : o))
       onActivityChange?.()
       toast.success('Orden de compra enviada al proveedor')
     } catch {
@@ -5064,8 +5064,8 @@ function PurchaseOrdersTab({ project, ocIdParam, onActivityChange }: { project: 
 
   const handleEstado = async (ocId: number, estado: string) => {
     try {
-      await ordenesCompraApi.changeEstado(ocId, estado)
-      await fetchOrders()
+      const res = await ordenesCompraApi.changeEstado(ocId, estado)
+      setOrders((prev) => prev.map((o) => o.id === ocId ? (res.data as PurchaseOrder) : o))
       onActivityChange?.()
     } catch {
       toast.error('Error al cambiar estado')
