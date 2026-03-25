@@ -315,13 +315,13 @@ function ProgressTimeline({
 // ---------------------------------------------------------------------------
 
 export default function ProjectDetailPage() {
-  const { id, tab: tabSlug, quotationId: quotationIdParam } = useParams<{ id: string; tab?: string; quotationId?: string }>()
+  const { id, tab: tabSlug, quotationId: quotationIdParam, ocId: ocIdParam } = useParams<{ id: string; tab?: string; quotationId?: string; ocId?: string }>()
   const navigate = useNavigate()
   const user = useUser()
   const tz = user?.timezone || 'America/Mexico_City'
 
-  // If URL has /cotizaciones/:quotationId, force quotes tab
-  const activeTab: TabType = quotationIdParam ? 'quotes' : (tabSlug && SLUG_TO_TAB[tabSlug]) || 'overview'
+  // If URL has /cotizaciones/:quotationId or /ordenes/:ocId, force that tab
+  const activeTab: TabType = quotationIdParam ? 'quotes' : ocIdParam ? 'orders' : (tabSlug && SLUG_TO_TAB[tabSlug]) || 'overview'
   const setActiveTab = (t: TabType) => {
     const slug = TAB_SLUG[t]
     navigate(t === 'overview' ? `/proyectos/${id}` : `/proyectos/${id}/${slug}`, { replace: true })
@@ -545,7 +545,7 @@ export default function ProjectDetailPage() {
         />
       )}
       {activeTab === 'orders' && (
-        <PurchaseOrdersTab project={project} onActivityChange={refreshTimeline} />
+        <PurchaseOrdersTab project={project} ocIdParam={ocIdParam} onActivityChange={refreshTimeline} />
       )}
       {activeTab !== 'overview' && activeTab !== 'proposal' && activeTab !== 'materials' && activeTab !== 'quotes' && activeTab !== 'orders' && activeTab !== 'files' && activeTab !== 'history' && (
         <PlaceholderTab tabId={activeTab} />
@@ -4974,6 +4974,9 @@ interface PurchaseOrder {
   facturada_en: string | null
   comprobante_pago_key: string | null
   pagada_en: string | null
+  factura_xml_url: string | null
+  factura_pdf_url: string | null
+  comprobante_pago_url: string | null
   creado_en: string
   actualizado_en: string
 }
@@ -4987,7 +4990,9 @@ const OC_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   cerrada: { label: 'Cerrada', color: 'bg-violet-500/15 text-violet-500' },
 }
 
-function PurchaseOrdersTab({ project, onActivityChange }: { project: Project; onActivityChange?: () => void }) {
+function PurchaseOrdersTab({ project, ocIdParam, onActivityChange }: { project: Project; ocIdParam?: string; onActivityChange?: () => void }) {
+  const navigate = useNavigate()
+  const { id: projectSlug } = useParams<{ id: string }>()
   const [orders, setOrders] = useState<PurchaseOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -5007,7 +5012,11 @@ function PurchaseOrdersTab({ project, onActivityChange }: { project: Project; on
     }
   }, [project.id])
 
-  useEffect(() => { fetchOrders() }, [fetchOrders])
+  useEffect(() => {
+    fetchOrders().then(() => {
+      if (ocIdParam) setEditingId(Number(ocIdParam))
+    })
+  }, [fetchOrders, ocIdParam])
 
   const handleCreate = async () => {
     try {
@@ -5087,7 +5096,7 @@ function PurchaseOrdersTab({ project, onActivityChange }: { project: Project; on
     return (
       <PurchaseOrderEditor
         order={editingOrder}
-        onBack={() => setEditingId(null)}
+        onBack={() => { setEditingId(null); navigate(`/proyectos/${projectSlug}/ordenes`, { replace: true }) }}
         onUpdate={(data) => handleUpdate(editingOrder.id, data)}
         onSend={() => handleSend(editingOrder.id)}
         onEstado={(estado) => handleEstado(editingOrder.id, estado)}
@@ -5131,7 +5140,7 @@ function PurchaseOrdersTab({ project, onActivityChange }: { project: Project; on
                 <div
                   key={oc.id}
                   className="rounded-lg border border-border bg-card hover:border-primary/30 transition-all cursor-pointer p-3"
-                  onClick={() => setEditingId(oc.id)}
+                  onClick={() => { setEditingId(oc.id); navigate(`/proyectos/${projectSlug}/ordenes/${oc.id}`, { replace: true }) }}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <div className="min-w-0">
@@ -5749,7 +5758,7 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
 
       {/* Invoice info (when facturada+) */}
       {order.facturada_en && (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Factura del proveedor</h3>
           <div className="grid grid-cols-3 gap-3 text-sm">
             <div><span className="text-xs text-muted-foreground block">UUID</span><span className="font-mono text-xs">{order.factura_uuid ?? '—'}</span></div>
@@ -5761,6 +5770,34 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
               El total de la factura no coincide con el total de la OC
             </div>
           )}
+          <div className="flex items-center gap-2">
+            {order.factura_xml_url && (
+              <a href={order.factura_xml_url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted transition-colors"
+              >
+                <Download className="h-3.5 w-3.5" /> XML
+              </a>
+            )}
+            {order.factura_pdf_url && (
+              <a href={order.factura_pdf_url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted transition-colors"
+              >
+                <Download className="h-3.5 w-3.5" /> PDF
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Payment proof */}
+      {order.comprobante_pago_url && (
+        <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Comprobante de pago</h3>
+          <a href={order.comprobante_pago_url} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted transition-colors w-fit"
+          >
+            <Download className="h-3.5 w-3.5" /> Ver comprobante
+          </a>
         </div>
       )}
 

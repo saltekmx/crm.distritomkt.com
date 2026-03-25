@@ -96,6 +96,14 @@ function App() {
             }
           />
           <Route
+            path="/proyectos/:id/ordenes/:ocId"
+            element={
+              <ProtectedRoute permission="proyectos:read">
+                <ProjectDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/proyectos/:id/cotizaciones/:quotationId"
             element={
               <ProtectedRoute permission="proyectos:read">
