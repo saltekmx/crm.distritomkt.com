@@ -5051,9 +5051,9 @@ function PurchaseOrdersTab({ project, ocIdParam, onActivityChange }: { project: 
     }
   }
 
-  const handleSend = async (ocId: number) => {
+  const handleSend = async (ocId: number, pdfBlob?: Blob) => {
     try {
-      const res = await ordenesCompraApi.send(ocId)
+      const res = await ordenesCompraApi.send(ocId, pdfBlob)
       setOrders((prev) => prev.map((o) => o.id === ocId ? (res.data as PurchaseOrder) : o))
       onActivityChange?.()
       toast.success('Orden de compra enviada al proveedor')
@@ -5099,7 +5099,7 @@ function PurchaseOrdersTab({ project, ocIdParam, onActivityChange }: { project: 
         order={editingOrder}
         onBack={() => { setEditingId(null); navigate(`/proyectos/${projectSlug}/ordenes`, { replace: true }) }}
         onUpdate={(data) => handleUpdate(editingOrder.id, data)}
-        onSend={() => handleSend(editingOrder.id)}
+        onSend={(pdfBlob) => handleSend(editingOrder.id, pdfBlob)}
         onEstado={(estado) => handleEstado(editingOrder.id, estado)}
       />
     )
@@ -5225,7 +5225,7 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
   order: PurchaseOrder
   onBack: () => void
   onUpdate: (data: Record<string, unknown>) => void
-  onSend: () => void
+  onSend: (pdfBlob?: Blob) => void
   onEstado: (estado: string) => void
 }) {
   const [nombre, setNombre] = useState(order.nombre)
@@ -5453,7 +5453,31 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={onSend}>Enviar</AlertDialogAction>
+                    <AlertDialogAction onClick={async () => {
+                      // Generate PDF from preview iframe and attach to email
+                      const previewIframe = previewRef.current
+                      if (previewIframe?.contentDocument) {
+                        try {
+                          const html2canvas = (await import('html2canvas')).default
+                          const canvas = await html2canvas(previewIframe.contentDocument.body, { scale: 2, useCORS: true })
+                          const { jsPDF } = await import('jspdf')
+                          const pdf = new jsPDF({ unit: 'mm', format: 'letter' })
+                          const imgData = canvas.toDataURL('image/jpeg', 0.95)
+                          const pW = pdf.internal.pageSize.getWidth()
+                          const pH = pdf.internal.pageSize.getHeight()
+                          const imgH = (canvas.height * pW) / canvas.width
+                          let y = 0
+                          while (y < imgH) {
+                            if (y > 0) pdf.addPage()
+                            pdf.addImage(imgData, 'JPEG', 0, -y, pW, imgH)
+                            y += pH
+                          }
+                          onSend(pdf.output('blob') as unknown as Blob)
+                          return
+                        } catch { /* fallback: send without PDF */ }
+                      }
+                      onSend()
+                    }}>Enviar</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>

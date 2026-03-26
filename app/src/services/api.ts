@@ -316,8 +316,11 @@ export const ordenesCompraApi = {
     api.patch(`/ordenes-compra/${id}`, data),
   delete: (id: number | string) =>
     api.delete(`/ordenes-compra/${id}`),
-  send: (id: number | string) =>
-    api.post(`/ordenes-compra/${id}/enviar`),
+  send: (id: number | string, pdfBlob?: Blob) => {
+    const fd = new FormData()
+    if (pdfBlob) fd.append('pdf', pdfBlob, 'orden.pdf')
+    return api.post(`/ordenes-compra/${id}/enviar`, fd)
+  },
   changeEstado: (id: number | string, estado: string) =>
     api.post(`/ordenes-compra/${id}/estado`, { nuevo_estado: estado }),
   uploadPayment: (id: number | string, file: File) => {
