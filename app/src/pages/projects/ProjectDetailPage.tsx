@@ -5240,6 +5240,7 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(true)
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null)
   const [showCatalog, setShowCatalog] = useState((order.imagenes ?? []).length > 0)
   const [projectMedia, setProjectMedia] = useState<MediaFile[]>([])
   const [loadingMedia, setLoadingMedia] = useState(false)
@@ -5772,18 +5773,26 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
             </div>
           )}
           <div className="flex items-center gap-2">
+            {order.factura_pdf_url && (
+              <button
+                onClick={() => setPreviewPdfUrl(order.factura_pdf_url)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted transition-colors cursor-pointer"
+              >
+                <Eye className="h-3.5 w-3.5" /> Ver PDF
+              </button>
+            )}
             {order.factura_xml_url && (
-              <a href={order.factura_xml_url} target="_blank" rel="noopener noreferrer"
+              <a href={order.factura_xml_url} download={`factura_${order.codigo}.xml`}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted transition-colors"
               >
-                <Download className="h-3.5 w-3.5" /> XML
+                <Download className="h-3.5 w-3.5" /> Descargar XML
               </a>
             )}
             {order.factura_pdf_url && (
-              <a href={order.factura_pdf_url} target="_blank" rel="noopener noreferrer"
+              <a href={order.factura_pdf_url} download={`factura_${order.codigo}.pdf`}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted transition-colors"
               >
-                <Download className="h-3.5 w-3.5" /> PDF
+                <Download className="h-3.5 w-3.5" /> Descargar PDF
               </a>
             )}
           </div>
@@ -5794,11 +5803,19 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
       {order.comprobante_pago_url && (
         <div className="rounded-xl border border-border bg-card p-4 space-y-2">
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Comprobante de pago</h3>
-          <a href={order.comprobante_pago_url} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted transition-colors w-fit"
-          >
-            <Download className="h-3.5 w-3.5" /> Ver comprobante
-          </a>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPreviewPdfUrl(order.comprobante_pago_url)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted transition-colors cursor-pointer"
+            >
+              <Eye className="h-3.5 w-3.5" /> Ver
+            </button>
+            <a href={order.comprobante_pago_url} download={`comprobante_${order.codigo}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm hover:bg-muted transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" /> Descargar
+            </a>
+          </div>
         </div>
       )}
 
@@ -5834,6 +5851,27 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
         </div>
       )}
       </div>{/* end grid wrapper */}
+
+      {/* PDF preview modal */}
+      {previewPdfUrl && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setPreviewPdfUrl(null)}>
+          <div className="bg-card rounded-xl shadow-2xl w-[90vw] max-w-4xl h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <span className="text-sm font-semibold">Vista previa</span>
+              <div className="flex items-center gap-2">
+                <a href={previewPdfUrl} download className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Descargar">
+                  <Download className="h-4 w-4" />
+                </a>
+                <button onClick={() => setPreviewPdfUrl(null)} className="p-1.5 rounded-md hover:bg-muted transition-colors cursor-pointer">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <iframe src={previewPdfUrl} className="flex-1 w-full" title="Vista previa PDF" />
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   )
 }
