@@ -1531,7 +1531,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
     try {
       const res = await ordenesCompraApi.create({
         proyecto_id: project.id,
-        nombre: 'Orden de compra desde costeo',
+        nombre: project.nombre,
         proveedor_nombre: '',
         proveedor_email: '',
         items,
@@ -5104,10 +5104,9 @@ function PurchaseOrdersTab({ project, ocIdParam, onActivityChange }: { project: 
 
   const handleCreate = async () => {
     try {
-      const num = orders.length + 1
       const created = await ordenesCompraApi.create({
         proyecto_id: project.id,
-        nombre: `Orden de compra v${num}`,
+        nombre: project.nombre,
         proveedor_nombre: '',
         proveedor_email: '',
         items: [{ concepto: '', cantidad: 1, precio_unitario: 0, categoria: 'GENERAL' }],
@@ -5171,10 +5170,9 @@ function PurchaseOrdersTab({ project, ocIdParam, onActivityChange }: { project: 
 
   const handleCreateFromCosteo = async (items: QuotationItem[]) => {
     try {
-      const num = orders.length + 1
       const created = await ordenesCompraApi.create({
         proyecto_id: project.id,
-        nombre: `OC desde costeo v${num}`,
+        nombre: project.nombre,
         proveedor_nombre: '',
         proveedor_email: '',
         items,
@@ -5572,7 +5570,7 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button size="sm" className="gap-2" disabled={!provEmail || items.length === 0}>
+                  <Button size="sm" className="gap-2" disabled={!provEmail || items.length === 0 || dirty || saving}>
                     <Send className="h-4 w-4" />
                     Enviar
                   </Button>
