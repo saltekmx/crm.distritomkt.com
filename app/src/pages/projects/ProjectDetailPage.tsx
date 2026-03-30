@@ -5611,7 +5611,11 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
                           const logoRes = await fetch('/logo-dark.png')
                           const logoBlob = await logoRes.blob()
                           const logoUrl = await new Promise<string>((r) => { const rd = new FileReader(); rd.onloadend = () => r(rd.result as string); rd.readAsDataURL(logoBlob) })
-                          doc.addImage(logoUrl, 'PNG', pageW - margin - 30, y - 2, 30, 10)
+                          const logoDims = await new Promise<{ w: number; h: number }>((r) => { const img = new window.Image(); img.onload = () => r({ w: img.naturalWidth, h: img.naturalHeight }); img.onerror = () => r({ w: 200, h: 80 }); img.src = logoUrl })
+                          const logoH = 12; const logoW = logoH * (logoDims.w / logoDims.h)
+                          doc.addImage(logoUrl, 'PNG', pageW - margin - logoW, y - 1, logoW, logoH)
+                          // Make logo clickable — link to project
+                          doc.link(pageW - margin - logoW, y - 1, logoW, logoH, { url: window.location.href })
                         } catch { /* skip */ }
                         y += 18; doc.setDrawColor(gold); doc.setLineWidth(0.8); doc.line(margin, y, pageW - margin, y); y += 10
 
@@ -5648,9 +5652,12 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
                         doc.setFont('helvetica', 'bold'); doc.setFontSize(12)
                         doc.text(`Total: ${fmtMXN(total * (1 + ivaPct / 100))}`, rightX, y, { align: 'right' })
 
-                        // Footer
+                        // Footer with hidden link
                         doc.setFontSize(8); doc.setTextColor('#94a3b8'); doc.setFont('helvetica', 'normal')
-                        doc.text(`Generado por DistritoMKT CRM — ${today}`, pageW / 2, pageH - 10, { align: 'center' })
+                        const footerText = `Generado por DistritoMKT CRM — ${today}`
+                        doc.text(footerText, pageW / 2, pageH - 10, { align: 'center' })
+                        const ftW = doc.getTextWidth(footerText)
+                        doc.link(pageW / 2 - ftW / 2, pageH - 14, ftW, 8, { url: window.location.href })
 
                         const pdfBlob = doc.output('blob') as unknown as Blob
                         console.log('PDF generated:', pdfBlob.size, 'bytes')
