@@ -5,7 +5,9 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Truck, Pencil, Loader2, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
-import { proveedoresApi } from '@/services/api'
+import { proveedoresApi, supplierBillingApi } from '@/services/api'
+import { BillingEntitiesSection } from '@/components/billing/BillingEntitiesSection'
+import { SupplierContactsSection } from '@/components/contacts/SupplierContactsSection'
 import { ROUTES } from '@/lib/routes'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -254,6 +256,14 @@ export default function ProveedorFormPage() {
           </Button>
         </div>
       </form>
+
+      {/* Contacts & Billing — only when editing */}
+      {isEditing && id && (
+        <>
+          <SupplierContactsSection supplierId={id} />
+          <BillingEntitiesSection parentId={id} apiService={supplierBillingApi} />
+        </>
+      )}
     </div>
   )
 }

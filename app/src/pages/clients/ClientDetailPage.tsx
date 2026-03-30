@@ -19,6 +19,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import ClientContactsSection from './ClientContactsSection'
+import { BillingEntitiesSection } from '@/components/billing/BillingEntitiesSection'
+import { clientBillingApi } from '@/services/api'
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -532,7 +534,10 @@ export default function ClientDetailPage() {
         </form>
       </div>
 
-      {/* Contacts Section — always visible below */}
+      {/* Billing Entities Section */}
+      <BillingEntitiesSection parentId={id!} apiService={clientBillingApi} />
+
+      {/* Contacts Section */}
       <ClientContactsSection clientId={id!} />
     </div>
   )
