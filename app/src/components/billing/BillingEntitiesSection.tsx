@@ -217,7 +217,7 @@ export function BillingEntitiesSection({ parentId, apiService }: {
       <div className="space-y-1.5 mb-5">
         <Label>Notas de facturación y cobranza</Label>
         <textarea
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+          className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none"
           rows={3}
           value={String(form.notas_facturacion ?? '')}
           onChange={(e) => setField('notas_facturacion', e.target.value)}
