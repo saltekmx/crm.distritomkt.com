@@ -2934,7 +2934,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
                         className="gap-2 cursor-pointer"
                       >
                         <ShoppingCart className="h-4 w-4" />
-                        Crear OC con todo
+                        Crear ODC con todo
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onClick={handlePrint} className="gap-2 cursor-pointer">
@@ -3128,7 +3128,7 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
           onCancel={() => setOcConfirmItems(null)}
           title="Crear orden de compra"
           subtitle="Precios de costo DMKT"
-          buttonLabel="Crear OC"
+          buttonLabel="Crear ODC"
         />
       )}
     </div>
@@ -5359,7 +5359,7 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
   order: PurchaseOrder
   onBack: () => void
   onUpdate: (data: Record<string, unknown>) => void
-  onSend: (pdfBlob?: Blob) => void
+  onSend: (pdfBlob?: Blob) => Promise<void> | void
   onEstado: (estado: string) => void
 }) {
   const [nombre, setNombre] = useState(order.nombre)
@@ -5372,6 +5372,7 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
   const [notas, setNotas] = useState(order.notas ?? '')
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [sending, setSending] = useState(false)
   const [lastSaved, setLastSaved] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(true)
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null)
@@ -5525,7 +5526,7 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
 <table><thead><tr><th style="width:30px;text-align:center">#</th><th>Concepto</th><th style="width:70px;text-align:center">Cantidad</th><th style="width:100px;text-align:right">Precio Unit.</th></tr></thead><tbody>${tableRows}</tbody></table>
 <div class="totals"><div class="line"><span>Subtotal:</span><span>${fmtMXN(total)}</span></div><div class="line"><span>IVA (${ivaPct}%):</span><span>${fmtMXN(total * (ivaPct / 100))}</span></div><div class="line total"><span>Total:</span><span>${fmtMXN(total * (1 + ivaPct / 100))}</span></div></div>
 ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top:2px solid #e2e8f0"><div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:12px;border-bottom:2px solid #d4af37;padding-bottom:6px">Catálogo de Imágenes</div>${imagenes.map((img) => `<div style="display:grid;grid-template-columns:1fr 1fr;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:10px"><img src="${img.url}" style="width:100%;height:auto;display:block" /><div style="padding:12px 14px;border-left:1px solid #e2e8f0"><div style="font-weight:700;font-size:12px;color:#0f172a;margin-bottom:6px">${img.title}</div>${img.description ? `<div style="font-size:10px;color:#334155;line-height:1.6">${img.description}</div>` : ''}</div></div>`).join('')}</div>` : ''}
-<div class="footer">Generado por DistritoMKT CRM — ${today}</div>
+<div class="footer"><a href="${window.location.href}" style="color:#94a3b8;text-decoration:none">Generado por DistritoMKT CRM — ${today}</a></div>
 </body></html>`
   }, [items, nombre, provNombre, provEmail, order.codigo, total, ivaPct, imagenes])
 
@@ -5587,31 +5588,36 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={async () => {
-                      // Generate PDF from preview iframe and attach to email
-                      const previewIframe = previewRef.current
-                      if (previewIframe?.contentDocument) {
-                        try {
-                          const html2canvas = (await import('html2canvas')).default
-                          const canvas = await html2canvas(previewIframe.contentDocument.body, { scale: 2, useCORS: true })
-                          const { jsPDF } = await import('jspdf')
-                          const pdf = new jsPDF({ unit: 'mm', format: 'letter' })
-                          const imgData = canvas.toDataURL('image/jpeg', 0.95)
-                          const pW = pdf.internal.pageSize.getWidth()
-                          const pH = pdf.internal.pageSize.getHeight()
-                          const imgH = (canvas.height * pW) / canvas.width
-                          let y = 0
-                          while (y < imgH) {
-                            if (y > 0) pdf.addPage()
-                            pdf.addImage(imgData, 'JPEG', 0, -y, pW, imgH)
-                            y += pH
-                          }
-                          onSend(pdf.output('blob') as unknown as Blob)
-                          return
-                        } catch { /* fallback: send without PDF */ }
+                    <AlertDialogAction disabled={sending} onClick={async () => {
+                      setSending(true)
+                      try {
+                        // Generate PDF from preview iframe
+                        const previewIframe = previewRef.current
+                        if (previewIframe?.contentDocument) {
+                          try {
+                            const html2canvas = (await import('html2canvas')).default
+                            const canvas = await html2canvas(previewIframe.contentDocument.body, { scale: 2, useCORS: true })
+                            const { jsPDF } = await import('jspdf')
+                            const pdf = new jsPDF({ unit: 'mm', format: 'letter' })
+                            const imgData = canvas.toDataURL('image/jpeg', 0.95)
+                            const pW = pdf.internal.pageSize.getWidth()
+                            const pH = pdf.internal.pageSize.getHeight()
+                            const imgH = (canvas.height * pW) / canvas.width
+                            let y = 0
+                            while (y < imgH) {
+                              if (y > 0) pdf.addPage()
+                              pdf.addImage(imgData, 'JPEG', 0, -y, pW, imgH)
+                              y += pH
+                            }
+                            await onSend(pdf.output('blob') as unknown as Blob)
+                            return
+                          } catch { /* fallback */ }
+                        }
+                        await onSend()
+                      } finally {
+                        setSending(false)
                       }
-                      onSend()
-                    }}>Enviar</AlertDialogAction>
+                    }}>{sending ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Enviando...</> : 'Enviar'}</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
