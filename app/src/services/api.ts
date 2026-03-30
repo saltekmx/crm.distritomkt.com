@@ -316,15 +316,17 @@ export const ordenesCompraApi = {
     api.patch(`/ordenes-compra/${id}`, data),
   delete: (id: number | string) =>
     api.delete(`/ordenes-compra/${id}`),
-  send: (id: number | string, pdfBlob?: Blob) => {
-    const fd = new FormData()
+  send: async (id: number | string, pdfBlob?: Blob) => {
+    let pdf_base64: string | null = null
     if (pdfBlob) {
-      fd.append('pdf', pdfBlob, 'orden.pdf')
-      console.log('Sending ODC with PDF:', pdfBlob.size, 'bytes')
-    } else {
-      console.log('Sending ODC without PDF')
+      const buf = await pdfBlob.arrayBuffer()
+      const bytes = new Uint8Array(buf)
+      let binary = ''
+      bytes.forEach((b) => { binary += String.fromCharCode(b) })
+      pdf_base64 = btoa(binary)
+      console.log('Sending ODC with PDF:', pdf_base64.length, 'base64 chars')
     }
-    return api.post(`/ordenes-compra/${id}/enviar`, fd)
+    return api.post(`/ordenes-compra/${id}/enviar`, { pdf_base64 })
   },
   changeEstado: (id: number | string, estado: string) =>
     api.post(`/ordenes-compra/${id}/estado`, { nuevo_estado: estado }),
