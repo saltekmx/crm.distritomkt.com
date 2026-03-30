@@ -318,7 +318,12 @@ export const ordenesCompraApi = {
     api.delete(`/ordenes-compra/${id}`),
   send: (id: number | string, pdfBlob?: Blob) => {
     const fd = new FormData()
-    if (pdfBlob) fd.append('pdf', pdfBlob, 'orden.pdf')
+    if (pdfBlob) {
+      fd.append('pdf', pdfBlob, 'orden.pdf')
+      console.log('Sending ODC with PDF:', pdfBlob.size, 'bytes')
+    } else {
+      console.log('Sending ODC without PDF')
+    }
     return api.post(`/ordenes-compra/${id}/enviar`, fd)
   },
   changeEstado: (id: number | string, estado: string) =>

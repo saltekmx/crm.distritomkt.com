@@ -5654,7 +5654,9 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
                         doc.setFontSize(8); doc.setTextColor('#94a3b8'); doc.setFont('helvetica', 'normal')
                         doc.text(`Generado por DistritoMKT CRM — ${today}`, pageW / 2, pageH - 10, { align: 'center' })
 
-                        await onSend(doc.output('blob') as unknown as Blob)
+                        const pdfBlob = doc.output('blob') as unknown as Blob
+                        console.log('PDF generated:', pdfBlob.size, 'bytes')
+                        await onSend(pdfBlob)
                       } catch (err) {
                         console.error('PDF generation failed:', err)
                         await onSend() // fallback: send without PDF
