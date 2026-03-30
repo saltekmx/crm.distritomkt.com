@@ -159,7 +159,7 @@ export default function ClientDetailPage() {
               <Building2 className="h-4 w-4 text-primary" />
               <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Información General</h3>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="nombre">Nombre comercial *</Label>
                 <Input
@@ -171,16 +171,17 @@ export default function ClientDetailPage() {
                 {errors.nombre && <p className="text-xs text-destructive">{errors.nombre.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="industria">Industria</Label>
+                <Label>Industria</Label>
                 <Select
-                  value={industriaValue}
+                  value={industriaValue || '_none'}
                   onValueChange={(val) => {
-                    setValue('industria', val, { shouldDirty: true })
+                    setValue('industria', val === '_none' ? '' : val, { shouldDirty: true })
                     if (val !== 'OTRO') setValue('industria_otro', '')
                   }}
                 >
-                  <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Seleccionar industria..." /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="_none">Sin industria</SelectItem>
                     {INDUSTRIAS.map((ind) => <SelectItem key={ind} value={ind}>{ind}</SelectItem>)}
                   </SelectContent>
                 </Select>
