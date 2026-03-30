@@ -136,56 +136,48 @@ export function BillingEntitiesSection({ parentId, apiService }: {
 
   // Inline form for create/edit
   const renderForm = () => (
-    <div className="border-t border-border p-5 space-y-4 bg-muted/5">
+    <div className="border-t border-border px-5 py-4 space-y-3 bg-muted/5">
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           {editingId && editingId > 0 ? 'Editar facturación' : 'Nueva facturación'}
-        </h4>
+        </span>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => cifRef.current?.click()}>
-            <Upload className="h-3.5 w-3.5" /> Cargar CIF
+          <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => cifRef.current?.click()}>
+            <Upload className="h-3 w-3" /> Cargar CIF
           </Button>
           <input ref={cifRef} type="file" accept=".pdf" className="hidden" onChange={handleCif} />
         </div>
       </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <div><Label>RFC</Label><Input value={String(form.rfc ?? '')} onChange={(e) => setField('rfc', e.target.value.toUpperCase())} placeholder="ABC123456XYZ" className="uppercase" /></div>
-        <div><Label>Razón Social</Label><Input value={String(form.razon_social ?? '')} onChange={(e) => setField('razon_social', e.target.value.toUpperCase())} className="uppercase" /></div>
-        <div><Label>Régimen Fiscal</Label><Input value={String(form.regimen_fiscal ?? '')} onChange={(e) => setField('regimen_fiscal', e.target.value)} /></div>
+      <div className="grid grid-cols-3 gap-x-3 gap-y-2">
+        <div><Label className="text-xs">RFC</Label><Input className="h-8 text-sm uppercase" value={String(form.rfc ?? '')} onChange={(e) => setField('rfc', e.target.value.toUpperCase())} placeholder="ABC123456XYZ" /></div>
+        <div><Label className="text-xs">Razón Social</Label><Input className="h-8 text-sm uppercase" value={String(form.razon_social ?? '')} onChange={(e) => setField('razon_social', e.target.value.toUpperCase())} /></div>
+        <div><Label className="text-xs">Régimen Fiscal</Label><Input className="h-8 text-sm" value={String(form.regimen_fiscal ?? '')} onChange={(e) => setField('regimen_fiscal', e.target.value)} /></div>
       </div>
-
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider pt-1">Dirección fiscal</p>
-      <div className="grid grid-cols-4 gap-3">
-        <div className="col-span-2"><Label>Calle</Label><Input value={String(form.calle ?? '')} onChange={(e) => setField('calle', e.target.value.toUpperCase())} className="uppercase" /></div>
-        <div><Label>No. Ext.</Label><Input value={String(form.numero_exterior ?? '')} onChange={(e) => setField('numero_exterior', e.target.value)} /></div>
-        <div><Label>No. Int.</Label><Input value={String(form.numero_interior ?? '')} onChange={(e) => setField('numero_interior', e.target.value)} /></div>
+      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Dirección fiscal</span>
+      <div className="grid grid-cols-6 gap-x-3 gap-y-2">
+        <div className="col-span-2"><Label className="text-xs">Calle</Label><Input className="h-8 text-sm uppercase" value={String(form.calle ?? '')} onChange={(e) => setField('calle', e.target.value.toUpperCase())} /></div>
+        <div><Label className="text-xs">No. Ext.</Label><Input className="h-8 text-sm" value={String(form.numero_exterior ?? '')} onChange={(e) => setField('numero_exterior', e.target.value)} /></div>
+        <div><Label className="text-xs">No. Int.</Label><Input className="h-8 text-sm" value={String(form.numero_interior ?? '')} onChange={(e) => setField('numero_interior', e.target.value)} /></div>
+        <div><Label className="text-xs">Colonia</Label><Input className="h-8 text-sm uppercase" value={String(form.colonia ?? '')} onChange={(e) => setField('colonia', e.target.value.toUpperCase())} /></div>
+        <div><Label className="text-xs">C.P.</Label><Input className="h-8 text-sm" value={String(form.codigo_postal ?? '')} onChange={(e) => setField('codigo_postal', e.target.value)} /></div>
       </div>
-      <div className="grid grid-cols-4 gap-3">
-        <div><Label>Colonia</Label><Input value={String(form.colonia ?? '')} onChange={(e) => setField('colonia', e.target.value.toUpperCase())} className="uppercase" /></div>
-        <div><Label>C.P.</Label><Input value={String(form.codigo_postal ?? '')} onChange={(e) => setField('codigo_postal', e.target.value)} /></div>
-        <div><Label>Ciudad</Label><Input value={String(form.ciudad ?? '')} onChange={(e) => setField('ciudad', e.target.value.toUpperCase())} className="uppercase" /></div>
-        <div><Label>Estado</Label><Input value={String(form.estado ?? '')} onChange={(e) => setField('estado', e.target.value.toUpperCase())} className="uppercase" /></div>
-      </div>
-
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider pt-1">Datos de pago</p>
-      <div className="grid grid-cols-3 gap-3">
-        <div><Label>Días de pago</Label><Input type="number" value={Number(form.dias_pago ?? 30)} onChange={(e) => setField('dias_pago', Number(e.target.value) || 30)} /></div>
-        <div><Label>Portal de facturas</Label><Input value={String(form.portal_facturas ?? '')} onChange={(e) => setField('portal_facturas', e.target.value)} placeholder="URL del portal" /></div>
-        <div className="flex items-end gap-2 pb-1">
+      <div className="grid grid-cols-6 gap-x-3 gap-y-2">
+        <div className="col-span-2"><Label className="text-xs">Ciudad</Label><Input className="h-8 text-sm uppercase" value={String(form.ciudad ?? '')} onChange={(e) => setField('ciudad', e.target.value.toUpperCase())} /></div>
+        <div className="col-span-2"><Label className="text-xs">Estado</Label><Input className="h-8 text-sm uppercase" value={String(form.estado ?? '')} onChange={(e) => setField('estado', e.target.value.toUpperCase())} /></div>
+        <div><Label className="text-xs">Días pago</Label><Input className="h-8 text-sm" type="number" value={Number(form.dias_pago ?? 30)} onChange={(e) => setField('dias_pago', Number(e.target.value) || 30)} /></div>
+        <div className="flex items-end gap-1.5 pb-0.5">
           <input type="checkbox" checked={Boolean(form.requiere_oc)} onChange={(e) => setField('requiere_oc', e.target.checked)} className="accent-[var(--primary)]" />
-          <Label className="cursor-pointer text-sm">Requiere OC</Label>
+          <Label className="cursor-pointer text-xs">Requiere OC</Label>
         </div>
       </div>
-      <div>
-        <Label>Notas de facturación</Label>
-        <textarea className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none" rows={2} value={String(form.notas_facturacion ?? '')} onChange={(e) => setField('notas_facturacion', e.target.value)} />
+      <div className="grid grid-cols-2 gap-3">
+        <div><Label className="text-xs">Portal de facturas</Label><Input className="h-8 text-sm" value={String(form.portal_facturas ?? '')} onChange={(e) => setField('portal_facturas', e.target.value)} placeholder="URL" /></div>
+        <div><Label className="text-xs">Notas de facturación</Label><Input className="h-8 text-sm" value={String(form.notas_facturacion ?? '')} onChange={(e) => setField('notas_facturacion', e.target.value)} /></div>
       </div>
-
-      <div className="flex justify-end gap-2 pt-2">
-        <Button variant="ghost" size="sm" onClick={cancelEdit}>Cancelar</Button>
-        <Button size="sm" onClick={handleSubmit} disabled={submitting} className="gap-2">
-          {submitting ? 'Guardando...' : <><Save className="h-3.5 w-3.5" /> Guardar</>}
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={cancelEdit}>Cancelar</Button>
+        <Button size="sm" className="h-7 text-xs gap-1.5" onClick={handleSubmit} disabled={submitting}>
+          {submitting ? 'Guardando...' : <><Save className="h-3 w-3" /> Guardar</>}
         </Button>
       </div>
     </div>
