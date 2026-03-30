@@ -523,6 +523,10 @@ export default function ProjectDetailPage() {
             navigate(`/proyectos/${id}/cotizaciones/${quotationId}`, { replace: true })
             refreshTimeline()
           }}
+          onSendToOC={(ocId) => {
+            navigate(`/proyectos/${id}/ordenes/${ocId}`, { replace: true })
+            refreshTimeline()
+          }}
         />
       )}
       {activeTab === 'files' && (
@@ -1455,7 +1459,7 @@ interface CatalogImage {
   naturalH: number
 }
 
-function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotation }: { project: Project; onUpdate: (p: Project) => void; onQuotationGenerated?: () => void; onSendToQuotation?: (quotationId: number) => void }) {
+function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotation, onSendToOC }: { project: Project; onUpdate: (p: Project) => void; onQuotationGenerated?: () => void; onSendToQuotation?: (quotationId: number) => void; onSendToOC?: (ocId: number) => void }) {
   const [rows, setRows] = useState<Material[]>(normalizeMaterials(project.materiales ?? []))
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -1514,6 +1518,32 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
       toast.error('Error al crear cotización')
     } finally {
       setCreatingQuotation(false)
+    }
+  }
+
+  // OC confirmation (similar to quotation but uses costo_dmkt_unitario)
+  const [ocConfirmItems, setOcConfirmItems] = useState<QuotationItem[] | null>(null)
+  const [creatingOc, setCreatingOc] = useState(false)
+
+  const confirmCreateOc = async (items: QuotationItem[]) => {
+    if (!onSendToOC) return
+    setCreatingOc(true)
+    try {
+      const res = await ordenesCompraApi.create({
+        proyecto_id: project.id,
+        nombre: 'Orden de compra desde costeo',
+        proveedor_nombre: '',
+        proveedor_email: '',
+        items,
+      })
+      const oc = res.data as { id: number }
+      setOcConfirmItems(null)
+      toast.success(`OC creada con ${items.length} conceptos`)
+      onSendToOC(oc.id)
+    } catch {
+      toast.error('Error al crear orden de compra')
+    } finally {
+      setCreatingOc(false)
     }
   }
 
@@ -2891,6 +2921,22 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
                         Crear cotización con todo
                       </DropdownMenuItem>
                     )}
+                    {onSendToOC && (
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setOcConfirmItems(rows.map((m) => ({
+                            concepto: m.concepto,
+                            cantidad: m.cantidad,
+                            precio_unitario: m.costo_dmkt_unitario,
+                            categoria: m.categoria,
+                          })))
+                        }}
+                        className="gap-2 cursor-pointer"
+                      >
+                        <ShoppingCart className="h-4 w-4" />
+                        Crear OC con todo
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={handlePrint} className="gap-2 cursor-pointer">
                       <Printer className="h-4 w-4" />
                       Imprimir todo
@@ -2992,6 +3038,26 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
               Cotización
             </Button>
           )}
+          {onSendToOC && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => {
+                setOcConfirmItems(rows
+                  .filter((_, i) => selectedRows.has(i))
+                  .map((m) => ({
+                    concepto: m.concepto,
+                    cantidad: m.cantidad,
+                    precio_unitario: m.costo_dmkt_unitario,
+                    categoria: m.categoria,
+                  })))
+              }}
+            >
+              <ShoppingCart className="h-3.5 w-3.5" />
+              OC
+            </Button>
+          )}
           <Button variant="ghost" size="sm" className="gap-2" onClick={handlePrintSelected}>
             <Printer className="h-3.5 w-3.5" />
             Imprimir
@@ -3052,6 +3118,17 @@ function MaterialsTab({ project, onUpdate, onQuotationGenerated, onSendToQuotati
           loading={creatingQuotation}
           onConfirm={confirmCreateQuotation}
           onCancel={() => setQuotationConfirmItems(null)}
+        />
+      )}
+      {ocConfirmItems && ocConfirmItems.length > 0 && (
+        <PendingCosteoConfirm
+          items={ocConfirmItems}
+          loading={creatingOc}
+          onConfirm={confirmCreateOc}
+          onCancel={() => setOcConfirmItems(null)}
+          title="Crear orden de compra"
+          subtitle="Precios de costo DMKT"
+          buttonLabel="Crear OC"
         />
       )}
     </div>
@@ -3941,11 +4018,14 @@ function QuotesTab({ project, quotationIdParam, onCotizacionesChange }: {
 // From Costeo Selector
 // ---------------------------------------------------------------------------
 
-function PendingCosteoConfirm({ items, loading, onConfirm, onCancel }: {
+function PendingCosteoConfirm({ items, loading, onConfirm, onCancel, title, subtitle, buttonLabel }: {
   items: QuotationItem[]
   loading?: boolean
   onConfirm: (items: QuotationItem[]) => void
   onCancel: () => void
+  title?: string
+  subtitle?: string
+  buttonLabel?: string
 }) {
   const groups: Map<string, QuotationItem[]> = new Map()
   for (const item of items) {
@@ -3962,8 +4042,8 @@ function PendingCosteoConfirm({ items, loading, onConfirm, onCancel }: {
       <div className="relative w-[95vw] max-w-2xl max-h-[80vh] rounded-xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <div>
-            <h3 className="text-lg font-semibold">Confirmar cotización desde costeo</h3>
-            <p className="text-sm text-muted-foreground">{items.length} concepto{items.length !== 1 ? 's' : ''} · Total: {fmtMXN(total)}</p>
+            <h3 className="text-lg font-semibold">{title || 'Confirmar cotización desde costeo'}</h3>
+            <p className="text-sm text-muted-foreground">{subtitle ? `${subtitle} · ` : ''}{items.length} concepto{items.length !== 1 ? 's' : ''} · Total: {fmtMXN(total)}</p>
           </div>
           <button onClick={onCancel} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer">
             <X className="h-5 w-5" />
@@ -4007,7 +4087,7 @@ function PendingCosteoConfirm({ items, loading, onConfirm, onCancel }: {
             <Button variant="ghost" onClick={onCancel} disabled={loading}>Cancelar</Button>
             <Button className="gap-2" onClick={() => onConfirm(items)} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {loading ? 'Creando...' : 'Crear cotización'}
+              {loading ? 'Creando...' : (buttonLabel || 'Crear cotización')}
             </Button>
           </div>
         </div>
@@ -5082,6 +5162,30 @@ function PurchaseOrdersTab({ project, ocIdParam, onActivityChange }: { project: 
     }
   }
 
+  const materials = normalizeMaterials(project.materiales ?? [])
+  const [showFromCosteo, setShowFromCosteo] = useState(false)
+
+  const handleCreateFromCosteo = async (items: QuotationItem[]) => {
+    try {
+      const num = orders.length + 1
+      const created = await ordenesCompraApi.create({
+        proyecto_id: project.id,
+        nombre: `OC desde costeo v${num}`,
+        proveedor_nombre: '',
+        proveedor_email: '',
+        items,
+      })
+      const oc = created.data as PurchaseOrder
+      setOrders((prev) => [oc, ...prev])
+      setEditingId(oc.id)
+      navigate(`/proyectos/${projectSlug}/ordenes/${oc.id}`, { replace: true })
+      onActivityChange?.()
+      toast.success(`OC creada con ${items.length} conceptos`)
+    } catch {
+      toast.error('Error al crear OC')
+    }
+  }
+
   const editingOrder = editingId ? orders.find((o) => o.id === editingId) ?? null : null
 
   if (loading) {
@@ -5108,6 +5212,22 @@ function PurchaseOrdersTab({ project, ocIdParam, onActivityChange }: { project: 
   // List view
   return (
     <div className="space-y-3">
+      {showFromCosteo && materials.length > 0 && (
+        <FromCosteoSelector
+          materials={materials}
+          onClose={() => setShowFromCosteo(false)}
+          onCreate={(items) => {
+            // Convert: FromCosteoSelector uses precio_cliente_unitario, but OC needs costo_dmkt_unitario
+            const ocItems = items.map((item) => {
+              const mat = materials.find((m) => m.concepto === item.concepto && m.categoria === item.categoria)
+              return { ...item, precio_unitario: mat?.costo_dmkt_unitario ?? item.precio_unitario }
+            })
+            handleCreateFromCosteo(ocItems)
+            setShowFromCosteo(false)
+          }}
+        />
+      )}
+
       {orders.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-border bg-card">
           <div className="w-14 h-14 rounded-2xl bg-primary/5 flex items-center justify-center mb-4">
@@ -5117,18 +5237,32 @@ function PurchaseOrdersTab({ project, ocIdParam, onActivityChange }: { project: 
           <p className="text-muted-foreground text-sm text-center max-w-sm mb-5">
             Crea una orden de compra para enviar al proveedor.
           </p>
-          <Button size="sm" className="gap-2" onClick={handleCreate}>
-            <Plus className="h-4 w-4" />
-            Crear orden de compra
-          </Button>
+          <div className="flex gap-3">
+            <Button size="sm" className="gap-2" onClick={handleCreate}>
+              <Plus className="h-4 w-4" />
+              Crear desde cero
+            </Button>
+            {materials.length > 0 && (
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowFromCosteo(true)}>
+                <Boxes className="h-4 w-4" />
+                Desde costeo
+              </Button>
+            )}
+          </div>
         </div>
       ) : (
         <>
           <div className="flex items-center justify-end gap-2">
             <Button variant="outline" size="sm" className="gap-2" onClick={handleCreate}>
               <Plus className="h-4 w-4" />
-              Nueva OC
+              Nueva
             </Button>
+            {materials.length > 0 && (
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowFromCosteo(true)}>
+                <Boxes className="h-4 w-4" />
+                Desde costeo
+              </Button>
+            )}
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
