@@ -304,6 +304,31 @@ export const cotizacionesApi = {
     api.delete(`/cotizaciones/${id}`),
 }
 
+// Billing entities — /clientes/{id}/facturacion or /proveedores/{id}/facturacion
+export const clientBillingApi = {
+  list: (clientId: number | string) => api.get(`/clientes/${clientId}/facturacion`),
+  create: (clientId: number | string, data: Record<string, unknown>) => api.post(`/clientes/${clientId}/facturacion`, data),
+  get: (clientId: number | string, entityId: number | string) => api.get(`/clientes/${clientId}/facturacion/${entityId}`),
+  update: (clientId: number | string, entityId: number | string, data: Record<string, unknown>) => api.patch(`/clientes/${clientId}/facturacion/${entityId}`, data),
+  delete: (clientId: number | string, entityId: number | string) => api.delete(`/clientes/${clientId}/facturacion/${entityId}`),
+}
+
+export const supplierBillingApi = {
+  list: (supplierId: number | string) => api.get(`/proveedores/${supplierId}/facturacion`),
+  create: (supplierId: number | string, data: Record<string, unknown>) => api.post(`/proveedores/${supplierId}/facturacion`, data),
+  get: (supplierId: number | string, entityId: number | string) => api.get(`/proveedores/${supplierId}/facturacion/${entityId}`),
+  update: (supplierId: number | string, entityId: number | string, data: Record<string, unknown>) => api.patch(`/proveedores/${supplierId}/facturacion/${entityId}`, data),
+  delete: (supplierId: number | string, entityId: number | string) => api.delete(`/proveedores/${supplierId}/facturacion/${entityId}`),
+}
+
+// Supplier contacts — /proveedores/{id}/contactos
+export const supplierContactsApi = {
+  list: (supplierId: number | string) => api.get(`/proveedores/${supplierId}/contactos`),
+  create: (supplierId: number | string, data: Record<string, unknown>) => api.post(`/proveedores/${supplierId}/contactos`, data),
+  update: (supplierId: number | string, contactId: number | string, data: Record<string, unknown>) => api.patch(`/proveedores/${supplierId}/contactos/${contactId}`, data),
+  delete: (supplierId: number | string, contactId: number | string) => api.delete(`/proveedores/${supplierId}/contactos/${contactId}`),
+}
+
 // Ordenes de Compra endpoints — matches /api/v1/ordenes-compra/*
 export const ordenesCompraApi = {
   list: (projectId: number | string) =>
