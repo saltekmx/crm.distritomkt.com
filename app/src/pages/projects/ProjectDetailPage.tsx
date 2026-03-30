@@ -4101,10 +4101,14 @@ function FromCosteoSelector({
   materials,
   onClose,
   onCreate,
+  priceField = 'precio_cliente_unitario',
+  priceLabel = 'Precio Cliente',
 }: {
   materials: Material[]
   onClose: () => void
   onCreate: (items: QuotationItem[]) => void
+  priceField?: 'precio_cliente_unitario' | 'costo_dmkt_unitario'
+  priceLabel?: string
 }) {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const groups = groupByCategory(materials)
@@ -4133,7 +4137,7 @@ function FromCosteoSelector({
       .map((m) => ({
         concepto: m.concepto,
         cantidad: m.cantidad,
-        precio_unitario: m.precio_cliente_unitario,
+        precio_unitario: m[priceField],
         categoria: m.categoria,
       }))
     onCreate(items)
@@ -4159,7 +4163,7 @@ function FromCosteoSelector({
                 <th className="w-8 px-3 py-2" />
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">Concepto</th>
                 <th className="text-right px-3 py-2 font-medium text-muted-foreground w-20">Cant.</th>
-                <th className="text-right px-3 py-2 font-medium text-muted-foreground">Precio Cliente</th>
+                <th className="text-right px-3 py-2 font-medium text-muted-foreground">{priceLabel}</th>
               </tr>
             </thead>
             <tbody>
@@ -4196,7 +4200,7 @@ function FromCosteoSelector({
                         </td>
                         <td className="px-3 py-1.5 whitespace-pre-wrap">{row.concepto}</td>
                         <td className="px-3 py-1.5 text-right">{row.cantidad}</td>
-                        <td className="px-3 py-1.5 text-right">{fmtMXN(row.precio_cliente_unitario)}</td>
+                        <td className="px-3 py-1.5 text-right">{fmtMXN(row[priceField])}</td>
                       </tr>
                     ))}
                   </Fragment>
@@ -5215,16 +5219,10 @@ function PurchaseOrdersTab({ project, ocIdParam, onActivityChange }: { project: 
       {showFromCosteo && materials.length > 0 && (
         <FromCosteoSelector
           materials={materials}
+          priceField="costo_dmkt_unitario"
+          priceLabel="Costo DMKT"
           onClose={() => setShowFromCosteo(false)}
-          onCreate={(items) => {
-            // Convert: FromCosteoSelector uses precio_cliente_unitario, but OC needs costo_dmkt_unitario
-            const ocItems = items.map((item) => {
-              const mat = materials.find((m) => m.concepto === item.concepto && m.categoria === item.categoria)
-              return { ...item, precio_unitario: mat?.costo_dmkt_unitario ?? item.precio_unitario }
-            })
-            handleCreateFromCosteo(ocItems)
-            setShowFromCosteo(false)
-          }}
+          onCreate={(items) => { handleCreateFromCosteo(items); setShowFromCosteo(false) }}
         />
       )}
 
