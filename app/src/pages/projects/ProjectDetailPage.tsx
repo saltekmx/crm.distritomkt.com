@@ -5591,29 +5591,75 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
                     <AlertDialogAction disabled={sending} onClick={async () => {
                       setSending(true)
                       try {
-                        // Generate PDF from preview iframe
-                        const previewIframe = previewRef.current
-                        if (previewIframe?.contentDocument) {
-                          try {
-                            const html2canvas = (await import('html2canvas')).default
-                            const canvas = await html2canvas(previewIframe.contentDocument.body, { scale: 2, useCORS: true })
-                            const { jsPDF } = await import('jspdf')
-                            const pdf = new jsPDF({ unit: 'mm', format: 'letter' })
-                            const imgData = canvas.toDataURL('image/jpeg', 0.95)
-                            const pW = pdf.internal.pageSize.getWidth()
-                            const pH = pdf.internal.pageSize.getHeight()
-                            const imgH = (canvas.height * pW) / canvas.width
-                            let y = 0
-                            while (y < imgH) {
-                              if (y > 0) pdf.addPage()
-                              pdf.addImage(imgData, 'JPEG', 0, -y, pW, imgH)
-                              y += pH
-                            }
-                            await onSend(pdf.output('blob') as unknown as Blob)
-                            return
-                          } catch { /* fallback */ }
+                        // Generate PDF programmatically (same approach as cotizaciones)
+                        const { jsPDF } = await import('jspdf')
+                        // @ts-ignore
+                        const autoTableModule = await import('jspdf-autotable')
+                        const autoTable = autoTableModule.default
+                        const doc = new jsPDF({ unit: 'mm', format: 'letter' })
+                        const pageW = doc.internal.pageSize.getWidth()
+                        const pageH = doc.internal.pageSize.getHeight()
+                        const margin = 20
+                        const contentW = pageW - margin * 2
+                        const dark = '#0f172a'
+                        const gray = '#64748b'
+                        const gold = '#d4af37'
+                        const today = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })
+
+                        let y = margin
+                        doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(dark)
+                        doc.text(`Orden de Compra ${order.codigo}`, margin, y + 6)
+                        doc.setFontSize(11); doc.setFont('helvetica', 'normal'); doc.setTextColor(gray)
+                        doc.text(nombre, margin, y + 12)
+                        try {
+                          const logoRes = await fetch('/logo-dark.png')
+                          const logoBlob = await logoRes.blob()
+                          const logoUrl = await new Promise<string>((r) => { const rd = new FileReader(); rd.onloadend = () => r(rd.result as string); rd.readAsDataURL(logoBlob) })
+                          doc.addImage(logoUrl, 'PNG', pageW - margin - 30, y - 2, 30, 10)
+                        } catch { /* skip */ }
+                        y += 18; doc.setDrawColor(gold); doc.setLineWidth(0.8); doc.line(margin, y, pageW - margin, y); y += 10
+
+                        // Meta
+                        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor('#475569')
+                        doc.text('PROVEEDOR', margin, y); doc.text('FECHA', margin + contentW / 2, y)
+                        doc.setFont('helvetica', 'normal'); doc.setTextColor(dark); doc.setFontSize(10)
+                        doc.text(provNombre, margin, y + 5); doc.text(today, margin + contentW / 2, y + 5)
+                        doc.setFontSize(8); doc.setTextColor(gray); doc.text(provEmail, margin, y + 10)
+                        y += 18
+
+                        // Table
+                        const groups: Map<string, typeof items> = new Map()
+                        for (const item of items) { const c = item.categoria || 'GENERAL'; groups.set(c, [...(groups.get(c) ?? []), item]) }
+                        const body: unknown[][] = []
+                        let rowNum = 0
+                        for (const [cat, catItems] of groups) {
+                          body.push([{ content: cat, colSpan: 4, styles: { fontStyle: 'bold', fillColor: '#f1f5f9', textColor: '#334155', fontSize: 9 } }])
+                          let catSub = 0
+                          for (const item of catItems) {
+                            rowNum++; catSub += item.cantidad * item.precio_unitario
+                            body.push([String(rowNum), item.concepto, String(item.cantidad), fmtMXN(item.precio_unitario)])
+                          }
+                          body.push([{ content: `Subtotal ${cat}`, colSpan: 3, styles: { halign: 'right', fontSize: 8, fontStyle: 'bold' } }, { content: fmtMXN(catSub), styles: { halign: 'right', fontStyle: 'bold' } }])
                         }
-                        await onSend()
+                        autoTable(doc, { startY: y, margin: { left: margin, right: margin }, head: [['#', 'Concepto', 'Cant.', 'Precio Unit.']], body, styles: { fontSize: 10, cellPadding: 3, textColor: dark }, headStyles: { fillColor: '#f8fafc', textColor: '#475569', fontStyle: 'bold', fontSize: 9 }, columnStyles: { 0: { cellWidth: 12, halign: 'center' }, 2: { cellWidth: 22, halign: 'center' }, 3: { cellWidth: 30, halign: 'right' } } })
+                        y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6
+
+                        // Totals
+                        const rightX = pageW - margin
+                        doc.setFontSize(10); doc.setTextColor(dark); doc.setFont('helvetica', 'normal')
+                        doc.text(`Subtotal: ${fmtMXN(total)}`, rightX, y, { align: 'right' }); y += 5
+                        doc.text(`IVA (${ivaPct}%): ${fmtMXN(total * (ivaPct / 100))}`, rightX, y, { align: 'right' }); y += 5
+                        doc.setFont('helvetica', 'bold'); doc.setFontSize(12)
+                        doc.text(`Total: ${fmtMXN(total * (1 + ivaPct / 100))}`, rightX, y, { align: 'right' })
+
+                        // Footer
+                        doc.setFontSize(8); doc.setTextColor('#94a3b8'); doc.setFont('helvetica', 'normal')
+                        doc.text(`Generado por DistritoMKT CRM — ${today}`, pageW / 2, pageH - 10, { align: 'center' })
+
+                        await onSend(doc.output('blob') as unknown as Blob)
+                      } catch (err) {
+                        console.error('PDF generation failed:', err)
+                        await onSend() // fallback: send without PDF
                       } finally {
                         setSending(false)
                       }
