@@ -6060,6 +6060,20 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
       )}
       </div>{/* end grid wrapper */}
 
+      {/* Sending overlay — blocks all interaction */}
+      {sending && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-card rounded-xl shadow-2xl p-8 flex flex-col items-center gap-4 max-w-sm">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <div className="text-center">
+              <h3 className="font-semibold text-lg">Enviando orden de compra...</h3>
+              <p className="text-sm text-muted-foreground mt-1">Generando PDF y enviando correo al proveedor</p>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
       {/* PDF preview modal */}
       {previewPdfUrl && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setPreviewPdfUrl(null)}>
