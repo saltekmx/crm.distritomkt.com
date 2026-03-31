@@ -4370,36 +4370,65 @@ function QuotationEditor({
     }))
   }
 
-  // Fee de agencia modal
-  const [feeCat, setFeeCat] = useState<string | null>(null)
+  // Fee de agencia — auto toggle per category
   const [feePct, setFeePct] = useState(15)
+  const [feeCats, setFeeCats] = useState<Set<string>>(() => {
+    // Initialize from existing items that have fee
+    const cats = new Set<string>()
+    for (const item of (quotation.items ?? [])) {
+      if ((item.concepto ?? '').startsWith('Fee de agencia')) cats.add(item.categoria)
+    }
+    return cats
+  })
 
-  const addAgencyFee = (catName: string, pct: number) => {
-    setQ((prev) => {
-      const items = [...prev.items]
-      const catItems = items.filter((i) => i.categoria === catName && !(i.concepto ?? '').startsWith('Fee de agencia'))
-      const catSubtotal = catItems.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
-      const feeAmount = Math.round(catSubtotal * (pct / 100) * 100) / 100
-      // Remove existing fee for this category
-      const filtered = items.filter((i) => !(i.categoria === catName && (i.concepto ?? '').startsWith('Fee de agencia')))
-      // Recalculate lastIdx after filtering
-      let insertIdx = -1
-      filtered.forEach((item, i) => { if (item.categoria === catName) insertIdx = i })
-      const feeItem: QuotationItem = {
-        concepto: 'Fee de agencia',
-        cantidad: 1,
-        precio_unitario: feeAmount,
-        categoria: catName,
-      }
-      if (insertIdx === -1) {
-        filtered.push(feeItem)
+  const toggleFee = (catName: string) => {
+    setFeeCats((prev) => {
+      const next = new Set(prev)
+      if (next.has(catName)) {
+        next.delete(catName)
+        // Remove fee item
+        setQ((p) => ({ ...p, items: p.items.filter((i) => !(i.categoria === catName && (i.concepto ?? '').startsWith('Fee de agencia'))) }))
       } else {
-        filtered.splice(insertIdx + 1, 0, feeItem)
+        next.add(catName)
+        // Will be recalculated by the effect below
       }
-      return { ...prev, items: filtered }
+      return next
     })
-    setFeeCat(null)
   }
+
+  // Auto-recalculate fees when items change
+  const recalcFeeRef = useRef(feeCats)
+  recalcFeeRef.current = feeCats
+  const feePctRef = useRef(feePct)
+  feePctRef.current = feePct
+
+  useEffect(() => {
+    if (recalcFeeRef.current.size === 0) return
+    setQ((prev) => {
+      let items = [...prev.items]
+      let changed = false
+      for (const catName of recalcFeeRef.current) {
+        const catItems = items.filter((i) => i.categoria === catName && !(i.concepto ?? '').startsWith('Fee de agencia'))
+        if (catItems.length === 0) continue
+        const catSubtotal = catItems.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
+        const feeAmount = Math.round(catSubtotal * (feePctRef.current / 100) * 100) / 100
+        // Remove old fee
+        const withoutFee = items.filter((i) => !(i.categoria === catName && (i.concepto ?? '').startsWith('Fee de agencia')))
+        // Find insert position (after last item of this category)
+        let insertIdx = -1
+        withoutFee.forEach((item, i) => { if (item.categoria === catName) insertIdx = i })
+        const feeItem: QuotationItem = { concepto: 'Fee de agencia', cantidad: 1, precio_unitario: feeAmount, categoria: catName }
+        if (insertIdx >= 0) {
+          withoutFee.splice(insertIdx + 1, 0, feeItem)
+        } else {
+          withoutFee.push(feeItem)
+        }
+        items = withoutFee
+        changed = true
+      }
+      return changed ? { ...prev, items } : prev
+    })
+  }, [q.items.length, q.items.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0)]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Catalog images
   const toggleCatalogImage = async (file: MediaFile) => {
@@ -4688,9 +4717,14 @@ function QuotationEditor({
                                 <Plus className="h-3 w-3" />
                               </button>
                               <button
-                                onClick={() => { setFeeCat(group.categoria); setFeePct(15) }}
-                                className="px-1.5 py-0.5 rounded hover:bg-amber-500/10 text-muted-foreground/50 hover:text-amber-600 transition-colors cursor-pointer text-[9px] font-semibold"
-                                title="Agregar fee de agencia"
+                                onClick={() => toggleFee(group.categoria)}
+                                className={cn(
+                                  'px-1.5 py-0.5 rounded text-[9px] font-semibold transition-colors cursor-pointer',
+                                  feeCats.has(group.categoria)
+                                    ? 'bg-amber-500 text-white'
+                                    : 'hover:bg-amber-500/10 text-muted-foreground/50 hover:text-amber-600'
+                                )}
+                                title={feeCats.has(group.categoria) ? `Fee activo (${feePct}%)` : 'Activar fee de agencia'}
                               >
                                 FEE
                               </button>
@@ -4784,34 +4818,20 @@ function QuotationEditor({
             </div>
           </div>
 
-          {/* Fee de agencia modal */}
-          {feeCat && createPortal(
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <div className="absolute inset-0 bg-black/60" onClick={() => setFeeCat(null)} />
-              <div className="relative w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl p-5">
-                <h3 className="text-sm font-semibold mb-1">Fee de agencia — {feeCat}</h3>
-                <p className="text-xs text-muted-foreground mb-4">
-                  Se calculará sobre el subtotal de la categoría (sin incluir fees previos).
-                </p>
-                <div className="flex items-center gap-2 mb-4">
-                  <input
-                    type="number"
-                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-lg font-semibold text-right outline-none focus:ring-2 focus:ring-primary/20"
-                    value={feePct}
-                    min={0}
-                    max={100}
-                    onChange={(e) => setFeePct(Number(e.target.value) || 0)}
-                    autoFocus
-                  />
-                  <span className="text-lg text-muted-foreground">%</span>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setFeeCat(null)}>Cancelar</Button>
-                  <Button size="sm" onClick={() => addAgencyFee(feeCat, feePct)}>Agregar fee</Button>
-                </div>
-              </div>
-            </div>,
-            document.body,
+          {/* Fee % config — inline, only show if any fee is active */}
+          {feeCats.size > 0 && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>Fee de agencia:</span>
+              <input
+                type="number"
+                className="w-12 rounded border border-border bg-transparent px-1.5 py-0.5 text-center text-xs outline-none focus:ring-1 focus:ring-primary/20"
+                value={feePct}
+                min={0}
+                max={100}
+                onChange={(e) => setFeePct(Number(e.target.value) || 0)}
+              />
+              <span>%</span>
+            </div>
           )}
 
           {/* Catalog images */}
