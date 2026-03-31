@@ -3916,7 +3916,22 @@ function QuotesTab({ project, quotationIdParam, onCotizacionesChange }: {
                       <Eye className="h-3.5 w-3.5" />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); setEditingWithUrl(q.id) }}
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        try {
+                          const blob = await generateQuotationPdfBlob(q, project)
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `${q.codigo}_${q.nombre.replace(/\s+/g, '_')}.pdf`
+                          document.body.appendChild(a)
+                          a.click()
+                          document.body.removeChild(a)
+                          URL.revokeObjectURL(url)
+                        } catch {
+                          toast.error('Error al generar PDF')
+                        }
+                      }}
                       className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
                       title="Descargar PDF"
                     >
