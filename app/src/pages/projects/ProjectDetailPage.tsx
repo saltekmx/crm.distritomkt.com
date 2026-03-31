@@ -4441,7 +4441,7 @@ function QuotationEditor({
       }
       return changed ? { ...prev, items } : prev
     })
-  }, [q.items.length, q.items.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0)]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [q.items.length, q.items.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0), feePct]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Catalog images
   const toggleCatalogImage = async (file: MediaFile) => {
