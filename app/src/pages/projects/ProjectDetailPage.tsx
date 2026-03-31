@@ -4391,7 +4391,19 @@ function QuotationEditor({
         setQ((p) => ({ ...p, items: p.items.filter((i) => !(i.categoria === catName && (i.concepto ?? '').startsWith('Fee de agencia'))) }))
       } else {
         next.add(catName)
-        // Will be recalculated by the effect below
+        // Add fee item immediately
+        setQ((p) => {
+          const items = [...p.items]
+          const catItems = items.filter((i) => i.categoria === catName && !(i.concepto ?? '').startsWith('Fee de agencia'))
+          const catSubtotal = catItems.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
+          const feeAmount = Math.round(catSubtotal * (feePct / 100) * 100) / 100
+          let insertIdx = -1
+          items.forEach((item, i) => { if (item.categoria === catName) insertIdx = i })
+          const feeItem: QuotationItem = { concepto: 'Fee de agencia', cantidad: 1, precio_unitario: feeAmount, categoria: catName }
+          if (insertIdx >= 0) items.splice(insertIdx + 1, 0, feeItem)
+          else items.push(feeItem)
+          return { ...p, items }
+        })
       }
       return next
     })
