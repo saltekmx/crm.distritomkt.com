@@ -65,7 +65,7 @@ export default function ProjectFormPage() {
       nombre: projectFromState?.nombre ?? '',
       tipo: projectFromState?.tipo ?? '',
       subcategoria: projectFromState?.subcategoria ?? '',
-      cliente_id: projectFromState?.cliente_id ?? (0),
+      cliente_id: projectFromState?.cliente_id ?? 0,
       fecha_entrega: projectFromState?.fecha_entrega?.slice(0, 10) ?? '',
       notas: projectFromState?.notas ?? '',
     },
@@ -169,7 +169,7 @@ export default function ProjectFormPage() {
               <div className="space-y-2">
                 <Label>Cliente *</Label>
                 <ClientCombobox
-                  value={clienteValue}
+                  value={clienteValue || ''}
                   onChange={(val) => setValue('cliente_id', val as number, { shouldValidate: true })}
                   error={errors.cliente_id?.message}
                 />
