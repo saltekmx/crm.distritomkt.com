@@ -3705,17 +3705,23 @@ function QuotesTab({ project, quotationIdParam, onCotizacionesChange }: {
     }
   }
 
+  const [togglingEstado, setTogglingEstado] = useState<number | null>(null)
+
   const handleToggleEstado = async (qId: number) => {
     const q = cotizaciones.find((c) => c.id === qId)
     if (!q) return
     const newEstado = q.estado === 'pendiente' ? 'aprobada' : 'pendiente'
+    setTogglingEstado(qId)
     try {
       const res = await cotizacionesApi.update(qId, { estado: newEstado })
       const updated = cotizaciones.map((c) => c.id === qId ? res.data as Quotation : c)
       setCotizaciones(updated)
       notifyParent(updated)
+      toast.success(newEstado === 'aprobada' ? 'Cotización aprobada' : 'Cotización marcada como pendiente')
     } catch {
       toast.error('Error al cambiar estado')
+    } finally {
+      setTogglingEstado(null)
     }
   }
 
@@ -3881,10 +3887,11 @@ function QuotesTab({ project, quotationIdParam, onCotizacionesChange }: {
                   <div className="flex items-center gap-0.5 -mx-1">
                     <button
                       onClick={(e) => { e.stopPropagation(); handleToggleEstado(q.id) }}
-                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                      disabled={togglingEstado === q.id}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-50"
                       title={q.estado === 'aprobada' ? 'Marcar pendiente' : 'Aprobar'}
                     >
-                      <CheckCircle className="h-3.5 w-3.5" />
+                      {togglingEstado === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5" />}
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDuplicate(q) }}
