@@ -73,7 +73,7 @@ export function ClientCombobox({ value, onChange, error }: ClientComboboxProps) 
 
   // Resolve selected label from value
   useEffect(() => {
-    if (!value) {
+    if (!value || value === 0) {
       setSelectedLabel('')
       return
     }
