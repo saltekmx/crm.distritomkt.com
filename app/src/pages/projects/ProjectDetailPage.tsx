@@ -4353,6 +4353,8 @@ function QuotationEditor({
       ...prev,
       items: [...prev.items, { concepto: '', cantidad: 1, precio_unitario: 0, categoria: catName }],
     }))
+    // Auto-enable fee for new category
+    setFeeCats((prev) => new Set([...prev, catName]))
   }
 
   const renameQuotationCategory = (oldName: string, newName: string) => {
@@ -4370,13 +4372,12 @@ function QuotationEditor({
     }))
   }
 
-  // Fee de agencia — auto toggle per category
+  // Fee de agencia — auto toggle per category (default ON for all categories)
   const [feePct, setFeePct] = useState(15)
   const [feeCats, setFeeCats] = useState<Set<string>>(() => {
-    // Initialize from existing items that have fee
     const cats = new Set<string>()
     for (const item of (quotation.items ?? [])) {
-      if ((item.concepto ?? '').startsWith('Fee de agencia')) cats.add(item.categoria)
+      cats.add(item.categoria)
     }
     return cats
   })
@@ -4758,41 +4759,49 @@ function QuotationEditor({
                           </td>
                         </tr>
                         {/* Items in category */}
-                        {group.items.map(({ item, idx }) => (
-                          <tr key={idx} className="border-b border-border/30 hover:bg-muted/10 transition-colors group">
+                        {group.items.map(({ item, idx }) => {
+                          const isFeeRow = (item.concepto ?? '').startsWith('Fee de agencia')
+                          return (
+                          <tr key={idx} className={cn('border-b border-border/30 transition-colors group', isFeeRow ? 'bg-amber-500/5' : 'hover:bg-muted/10')}>
                             <td className="px-3 py-1.5 pl-6">
-                              <DeferredTextarea
-                                className="w-full bg-transparent border-0 outline-none text-sm resize-none min-h-[1.75rem]"
-                                value={item.concepto ?? ''}
-                                onChange={(v) => updateItem(idx, 'concepto', v)}
-                                placeholder="Descripción del concepto"
-                              />
+                              {isFeeRow ? (
+                                <span className="text-sm text-amber-600 font-medium">Fee de agencia ({feePct}%)</span>
+                              ) : (
+                                <DeferredTextarea
+                                  className="w-full bg-transparent border-0 outline-none text-sm resize-none min-h-[1.75rem]"
+                                  value={item.concepto ?? ''}
+                                  onChange={(v) => updateItem(idx, 'concepto', v)}
+                                  placeholder="Descripción del concepto"
+                                />
+                              )}
                             </td>
                             <td className="px-3 py-1.5">
-                              <input
-                                type="number"
-                                className="w-full bg-transparent border-0 outline-none text-right text-sm"
-                                value={item.cantidad}
-                                min={0}
-                                onChange={(e) => updateItem(idx, 'cantidad', Number(e.target.value) || 0)}
-                              />
+                              {isFeeRow ? (
+                                <span className="block text-right text-sm text-muted-foreground">{item.cantidad}</span>
+                              ) : (
+                                <input type="number" className="w-full bg-transparent border-0 outline-none text-right text-sm" value={item.cantidad} min={0} onChange={(e) => updateItem(idx, 'cantidad', Number(e.target.value) || 0)} />
+                              )}
                             </td>
                             <td className="px-3 py-1.5">
-                              <CurrencyInput
-                                value={item.precio_unitario}
-                                onChange={(v) => updateItem(idx, 'precio_unitario', v)}
-                              />
+                              {isFeeRow ? (
+                                <span className="block text-right text-sm text-muted-foreground">{fmtMXN(item.precio_unitario)}</span>
+                              ) : (
+                                <CurrencyInput value={item.precio_unitario} onChange={(v) => updateItem(idx, 'precio_unitario', v)} />
+                              )}
                             </td>
                             <td className="px-3 py-1.5 text-right text-muted-foreground text-sm">
                               {fmtMXN(item.cantidad * item.precio_unitario)}
                             </td>
                             <td className="px-1 py-1.5">
-                              <button onClick={() => removeItem(idx)} className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all cursor-pointer">
-                                <Trash2 className="h-3 w-3" />
-                              </button>
+                              {!isFeeRow && (
+                                <button onClick={() => removeItem(idx)} className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all cursor-pointer">
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              )}
                             </td>
                           </tr>
-                        ))}
+                          )
+                        })}
                         {/* Category subtotal */}
                         <tr className="border-b border-border/60 bg-muted/5">
                           <td colSpan={3} className="px-3 py-1.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
