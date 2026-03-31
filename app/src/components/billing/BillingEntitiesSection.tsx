@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Upload, Save } from 'lucide-react'
+import { Plus, Pencil, Trash2, Upload, Save, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -256,35 +256,50 @@ export function BillingEntitiesSection({ parentId, apiService }: {
         </div>
       ) : (
         <div>
-          {/* Existing entities list */}
-          {entities.map((e) => (
-            <div key={e.id}>
-              {editingId === e.id ? (
-                renderForm()
-              ) : (
-                <div className="px-5 py-3 flex items-center gap-4 hover:bg-muted/20 transition-colors border-b border-border/50 last:border-b-0">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-mono text-xs text-primary font-semibold">{e.rfc || '—'}</span>
-                      {e.requiere_oc && <span className="text-[10px] bg-amber-500/15 text-amber-600 px-1.5 py-0.5 rounded font-medium">Requiere OC</span>}
-                    </div>
-                    <p className="text-sm font-medium">{e.razon_social || 'Sin razón social'}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {[e.regimen_fiscal, e.codigo_postal && `CP ${e.codigo_postal}`, e.ciudad, e.estado].filter(Boolean).join(' · ') || 'Sin datos fiscales'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => startEdit(e)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer" title="Editar">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => setDeleteId(e.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer" title="Eliminar">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-2.5 font-medium">RFC</th>
+                <th className="px-4 py-2.5 font-medium">Razón Social</th>
+                <th className="px-4 py-2.5 font-medium">Régimen</th>
+                <th className="px-4 py-2.5 font-medium">C.P.</th>
+                <th className="px-4 py-2.5 font-medium w-10"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {entities.map((e) => (
+                editingId === e.id ? (
+                  <tr key={e.id}><td colSpan={5} className="p-0">{renderForm()}</td></tr>
+                ) : (
+                  <tr key={e.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs text-primary font-semibold">{e.rfc || '—'}</span>
+                        {e.rfc && (
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(e.rfc!); toast.success('RFC copiado') }}
+                            className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground transition-colors cursor-pointer"
+                            title="Copiar RFC"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-sm">{e.razon_social || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground">{e.regimen_fiscal || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground">{e.codigo_postal || '—'}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-0.5">
+                        <button onClick={() => startEdit(e)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"><Pencil className="h-3 w-3" /></button>
+                        <button onClick={() => setDeleteId(e.id)} className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"><Trash2 className="h-3 w-3" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

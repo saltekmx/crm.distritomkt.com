@@ -90,26 +90,35 @@ export function SupplierContactsSection({ supplierId }: { supplierId: number | s
       ) : contacts.length === 0 ? (
         <div className="p-6 text-center text-sm text-muted-foreground">Sin contactos</div>
       ) : (
-        <div className="divide-y divide-border">
-          {contacts.map((c) => (
-            <div key={c.id} className="px-4 py-3 flex items-center gap-4 hover:bg-muted/20 transition-colors">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">{c.nombre}</p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {[c.cargo, c.email, c.telefono].filter(Boolean).join(' · ') || 'Sin datos de contacto'}
-                </p>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => openEdit(c)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer">
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={() => setDeleteId(c.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+              <th className="px-4 py-2.5 font-medium">Nombre</th>
+              <th className="px-4 py-2.5 font-medium">Email</th>
+              <th className="px-4 py-2.5 font-medium">Teléfono</th>
+              <th className="px-4 py-2.5 font-medium">Cargo</th>
+              <th className="px-4 py-2.5 font-medium">Cumpleaños</th>
+              <th className="px-4 py-2.5 font-medium w-10"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/40">
+            {contacts.map((c) => (
+              <tr key={c.id} className="hover:bg-muted/20 transition-colors">
+                <td className="px-4 py-2.5 font-medium">{c.nombre}</td>
+                <td className="px-4 py-2.5 text-muted-foreground">{c.email || '—'}</td>
+                <td className="px-4 py-2.5 text-muted-foreground">{c.telefono || '—'}</td>
+                <td className="px-4 py-2.5 text-muted-foreground">{c.cargo || '—'}</td>
+                <td className="px-4 py-2.5 text-muted-foreground text-xs">{c.fecha_cumpleanos || '—'}</td>
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center gap-0.5">
+                    <button onClick={() => openEdit(c)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"><Pencil className="h-3 w-3" /></button>
+                    <button onClick={() => setDeleteId(c.id)} className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"><Trash2 className="h-3 w-3" /></button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
 
       {dialogOpen && (
