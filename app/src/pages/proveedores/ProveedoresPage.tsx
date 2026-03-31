@@ -31,6 +31,8 @@ import {
 interface Supplier {
   id: number
   nombre: string
+  rfc: string | null
+  industria: string | null
   contacto: string | null
   email: string | null
   telefono: string | null
@@ -172,33 +174,29 @@ export default function ProveedoresPage() {
         )}
       </div>
 
-      <div className="card-modern overflow-hidden">
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
-              <th className="px-6 py-4 font-medium">Nombre</th>
-              <th className="px-6 py-4 font-medium">Contacto</th>
-              <th className="px-6 py-4 font-medium">Email</th>
-              <th className="px-6 py-4 font-medium">Telefono</th>
-              <th className="px-6 py-4 font-medium">WhatsApp</th>
-              <th className="px-6 py-4 font-medium w-14"></th>
+            <tr className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+              <th className="px-4 py-3 font-medium">Nombre</th>
+              <th className="px-4 py-3 font-medium">RFC</th>
+              <th className="px-4 py-3 font-medium">Industria</th>
+              <th className="px-4 py-3 font-medium w-10"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/30">
+          <tbody className="divide-y divide-border/40">
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
-                  <td className="px-6 py-5"><div className="h-3.5 w-32 rounded bg-muted animate-pulse" /></td>
-                  <td className="px-6 py-5"><div className="h-3.5 w-24 rounded bg-muted animate-pulse" /></td>
-                  <td className="px-6 py-5"><div className="h-3.5 w-28 rounded bg-muted animate-pulse" /></td>
-                  <td className="px-6 py-5"><div className="h-3.5 w-20 rounded bg-muted animate-pulse" /></td>
-                  <td className="px-6 py-5"><div className="h-3.5 w-20 rounded bg-muted animate-pulse" /></td>
-                  <td className="px-6 py-5"><div className="h-8 w-8 rounded bg-muted animate-pulse" /></td>
+                  <td className="px-4 py-3"><div className="h-3 w-32 rounded bg-muted animate-pulse" /></td>
+                  <td className="px-4 py-3"><div className="h-3 w-24 rounded bg-muted animate-pulse" /></td>
+                  <td className="px-4 py-3"><div className="h-3 w-20 rounded bg-muted animate-pulse" /></td>
+                  <td className="px-4 py-3"><div className="h-6 w-6 rounded bg-muted animate-pulse" /></td>
                 </tr>
               ))
             ) : suppliers.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-20 text-center">
+                <td colSpan={4} className="px-4 py-20 text-center">
                   <Truck className="mx-auto h-10 w-10 text-muted-foreground/40" />
                   <p className="mt-3 text-sm font-medium text-muted-foreground">
                     {search ? 'No se encontraron resultados' : 'No hay proveedores registrados'}
@@ -210,23 +208,17 @@ export default function ProveedoresPage() {
               </tr>
             ) : (
               suppliers.map((supplier) => (
-                <tr key={supplier.id} className="transition-colors hover:bg-muted/20 group">
-                  <td className="px-6 py-4">
-                    <span className="text-sm font-medium">{deleteTarget?.id === supplier.id ? '\u00A0' : supplier.nombre}</span>
+                <tr key={supplier.id} className="transition-colors hover:bg-muted/20 cursor-pointer" onClick={() => navigate(ROUTES.SUPPLIERS_EDIT(supplier.id), { state: supplier })}>
+                  <td className="px-4 py-3">
+                    <span className="text-sm font-medium">{supplier.nombre}</span>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-muted-foreground">{supplier.contacto || '—'}</span>
+                  <td className="px-4 py-3">
+                    <span className="text-xs font-mono text-muted-foreground">{supplier.rfc || '—'}</span>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-muted-foreground">{supplier.email || '—'}</span>
+                  <td className="px-4 py-3">
+                    <span className="text-xs text-muted-foreground">{supplier.industria || '—'}</span>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-muted-foreground">{supplier.telefono || '—'}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-muted-foreground">{supplier.whatsapp || '—'}</span>
-                  </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
