@@ -6,8 +6,11 @@ interface OcPublic {
   codigo: string
   nombre: string
   proveedor_nombre: string
+  proveedor_rfc: string | null
+  receptor_rfc: string | null
   estado: string
   items: Array<{ concepto: string; cantidad: number; precio_unitario: number; categoria: string }> | null
+  iva_porcentaje: number
   ya_facturo: boolean
 }
 
@@ -119,8 +122,16 @@ export default function SupplierInvoiceUploadPage() {
 
   const items = oc?.items ?? []
   const subtotal = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0)
-  const totalConIva = subtotal * 1.16
+  const ivaPct = oc?.iva_porcentaje ?? 16
+  const totalConIva = subtotal * (1 + ivaPct / 100)
+
+  // Validation errors
   const hasMismatch = xmlPreview?.valid && xmlPreview.total ? Math.abs(xmlPreview.total - totalConIva) > 0.01 : false
+  const hasRfcEmisorMismatch = xmlPreview?.valid && oc?.proveedor_rfc && xmlPreview.rfc_emisor
+    ? xmlPreview.rfc_emisor.toUpperCase() !== oc.proveedor_rfc.toUpperCase() : false
+  const hasRfcReceptorMismatch = xmlPreview?.valid && oc?.receptor_rfc && xmlPreview.rfc_receptor
+    ? xmlPreview.rfc_receptor.toUpperCase() !== oc.receptor_rfc.toUpperCase() : false
+  const hasErrors = hasMismatch || hasRfcEmisorMismatch || hasRfcReceptorMismatch
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-start justify-center py-12 px-4">
@@ -171,7 +182,7 @@ export default function SupplierInvoiceUploadPage() {
                 </table>
                 <div className="space-y-1 mt-3 pt-3 border-t border-gray-200 text-right">
                   <div className="text-sm text-gray-500">Subtotal: {fmtMXN(subtotal)}</div>
-                  <div className="text-sm text-gray-500">IVA (16%): {fmtMXN(subtotal * 0.16)}</div>
+                  <div className="text-sm text-gray-500">IVA ({ivaPct}%): {fmtMXN(subtotal * (ivaPct / 100))}</div>
                   <div className="text-lg font-bold text-gray-900">Total: {fmtMXN(totalConIva)}</div>
                 </div>
               </div>
@@ -233,21 +244,37 @@ export default function SupplierInvoiceUploadPage() {
                         </div>
                       ))}
 
-                      {/* Mismatch warning */}
-                      {hasMismatch && (
-                        <div className="p-4 rounded-lg bg-red-50 border border-red-200">
-                          <div className="flex items-center gap-2 mb-1">
-                            <svg className="h-5 w-5 text-red-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                            <span className="font-semibold text-red-700 text-sm">El total de la factura no coincide con la orden de compra</span>
+                      {/* Validation errors */}
+                      {hasRfcEmisorMismatch && (
+                        <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                          <div className="flex items-center gap-2">
+                            <svg className="h-4 w-4 text-red-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            <div><span className="font-semibold text-red-700 text-sm">RFC Emisor no coincide con el proveedor</span>
+                            <div className="text-xs text-red-600">Factura: {xmlPreview?.rfc_emisor} · Proveedor: {oc?.proveedor_rfc || 'Sin RFC registrado'}</div></div>
                           </div>
-                          <div className="text-xs text-red-600 ml-7">
-                            OC: {fmtMXN(totalConIva)} · Factura: {fmtMXN(xmlPreview?.total ?? 0)} (diferencia: {fmtMXN(Math.abs((xmlPreview?.total ?? 0) - totalConIva))})
+                        </div>
+                      )}
+                      {hasRfcReceptorMismatch && (
+                        <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                          <div className="flex items-center gap-2">
+                            <svg className="h-4 w-4 text-red-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            <div><span className="font-semibold text-red-700 text-sm">RFC Receptor no coincide</span>
+                            <div className="text-xs text-red-600">Factura: {xmlPreview?.rfc_receptor} · Esperado: {oc?.receptor_rfc || 'No configurado'}</div></div>
+                          </div>
+                        </div>
+                      )}
+                      {hasMismatch && (
+                        <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                          <div className="flex items-center gap-2">
+                            <svg className="h-4 w-4 text-red-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                            <div><span className="font-semibold text-red-700 text-sm">El total no coincide</span>
+                            <div className="text-xs text-red-600">ODC: {fmtMXN(totalConIva)} · Factura: {fmtMXN(xmlPreview?.total ?? 0)}</div></div>
                           </div>
                         </div>
                       )}
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">PDF (opcional)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">PDF *</label>
                         <input type="file" accept=".pdf"
                           onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
                           className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100 cursor-pointer"
@@ -256,7 +283,7 @@ export default function SupplierInvoiceUploadPage() {
 
                       <button
                         onClick={() => setShowConfirm(true)}
-                        disabled={!xmlFile || !xmlPreview?.valid}
+                        disabled={!xmlFile || !pdfFile || !xmlPreview?.valid || hasErrors}
                         className="w-full py-3 px-4 rounded-lg bg-[#d4af37] text-white font-semibold text-sm hover:bg-[#c5a030] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         Subir Factura
@@ -279,11 +306,9 @@ export default function SupplierInvoiceUploadPage() {
                 <p><strong>Receptor:</strong> {xmlPreview.nombre_receptor} ({xmlPreview.rfc_receptor})</p>
                 <p><strong>UUID:</strong> <span className="font-mono text-xs">{xmlPreview.uuid}</span></p>
                 <p><strong>Total:</strong> {fmtMXN(xmlPreview.total ?? 0)} {xmlPreview.moneda}</p>
-                {hasMismatch && (
-                  <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
-                    El total no coincide con la OC ({fmtMXN(totalConIva)}). Se enviará con advertencia.
-                  </div>
-                )}
+                {hasRfcEmisorMismatch && <p className="text-red-600 text-xs font-medium">⚠ RFC Emisor no coincide: {xmlPreview.rfc_emisor} ≠ {oc?.proveedor_rfc}</p>}
+                {hasRfcReceptorMismatch && <p className="text-red-600 text-xs font-medium">⚠ RFC Receptor no coincide: {xmlPreview.rfc_receptor} ≠ {oc?.receptor_rfc}</p>}
+                {hasMismatch && <p className="text-red-600 text-xs font-medium">⚠ Total no coincide: ODC {fmtMXN(totalConIva)} ≠ Factura {fmtMXN(xmlPreview.total ?? 0)}</p>}
               </div>
               <div className="flex justify-end gap-3">
                 <button onClick={() => setShowConfirm(false)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
