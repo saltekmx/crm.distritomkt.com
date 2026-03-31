@@ -134,7 +134,7 @@ export function SupplierCombobox({
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute z-50 mt-1 w-56 rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
+        <div className="absolute z-50 mt-1 w-72 rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
           style={{ left: compact ? 0 : undefined }}
         >
           {/* Search input */}
@@ -192,11 +192,11 @@ export function SupplierCombobox({
                   key={name}
                   type="button"
                   onClick={() => handleSelect(name)}
-                  className={`w-full flex items-center gap-1.5 rounded-sm px-2 py-1.5 text-xs cursor-pointer transition-colors
+                  className={`w-full flex items-center gap-1.5 rounded-sm px-2 py-1.5 text-xs text-left cursor-pointer transition-colors
                     ${name === value ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'}`}
                 >
                   <Truck className="h-3 w-3 text-muted-foreground shrink-0" />
-                  {name}
+                  <span className="truncate">{name}</span>
                 </button>
               ))
             )}

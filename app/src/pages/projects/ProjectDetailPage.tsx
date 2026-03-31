@@ -20,7 +20,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { toast } from 'sonner'
-import { projectsApi, proveedoresApi, cotizacionesApi, ordenesCompraApi } from '@/services/api'
+import { projectsApi, proveedoresApi, cotizacionesApi, ordenesCompraApi, supplierContactsApi } from '@/services/api'
 import { mediaApi, type MediaFile } from '@/lib/media'
 import { ROUTES } from '@/lib/routes'
 import {
@@ -5425,6 +5425,7 @@ function PurchaseOrderEditor({ order, onBack, onUpdate, onSend, onEstado }: {
   const [provNombre, setProvNombre] = useState(order.proveedor_nombre)
   const [provEmail, setProvEmail] = useState(order.proveedor_email)
   const [provTel, setProvTel] = useState(order.proveedor_telefono ?? '')
+  const [supplierContacts, setSupplierContacts] = useState<Array<{ id: number; nombre: string; email: string | null; telefono: string | null }>>([])
   const [items, setItems] = useState<QuotationItem[]>(order.items ?? [])
   const [imagenes, setImagenes] = useState<CatalogImage[]>(order.imagenes ?? [])
   const [ivaPct, setIvaPct] = useState(order.iva_porcentaje ?? 16)
@@ -5801,25 +5802,49 @@ ${imagenes.length > 0 ? `<div style="margin-top:32px;padding-top:20px;border-top
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
         <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Proveedor</h3>
         {isDraft ? (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             <div>
               <label className="text-xs text-muted-foreground">Nombre</label>
               <SupplierCombobox
                 value={provNombre}
                 onChange={(name) => {
                   setProvNombre(name); markDirty()
+                  setSupplierContacts([])
                   if (name) {
                     proveedoresApi.list({ buscar: name, limit: 1 }).then((res) => {
-                      const data = res.data as { elementos: Array<{ nombre: string; email: string | null; telefono: string | null }> }
+                      const data = res.data as { elementos: Array<{ id: number; nombre: string; email: string | null; telefono: string | null }> }
                       const match = data.elementos.find((s) => s.nombre === name)
                       if (match) {
                         setProvEmail(match.email ?? ''); setProvTel(match.telefono ?? ''); markDirty()
+                        // Fetch contacts for this supplier
+                        supplierContactsApi.list(match.id).then((cRes) => {
+                          setSupplierContacts(cRes.data as Array<{ id: number; nombre: string; email: string | null; telefono: string | null }>)
+                        }).catch(() => {})
                       }
                     }).catch(() => {})
                   }
                 }}
                 placeholder="Buscar proveedor..."
               />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Contacto</label>
+              <select
+                className="mt-0.5 w-full h-9 rounded-lg border border-border bg-transparent px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                value=""
+                onChange={(e) => {
+                  const c = supplierContacts.find((x) => x.id === Number(e.target.value))
+                  if (c) {
+                    if (c.email) { setProvEmail(c.email); markDirty() }
+                    if (c.telefono) { setProvTel(c.telefono); markDirty() }
+                  }
+                }}
+              >
+                <option value="">Seleccionar contacto...</option>
+                {supplierContacts.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nombre}{c.email ? ` — ${c.email}` : ''}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Email *</label>
